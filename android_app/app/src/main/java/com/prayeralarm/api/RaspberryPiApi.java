@@ -33,7 +33,7 @@ public class RaspberryPiApi {
         this.context = context;
         SharedPreferences prefs = context.getSharedPreferences("PrayerAlarmPrefs", Context.MODE_PRIVATE);
         this.serverIp = prefs.getString("server_ip", "192.168.1.100");
-        this.serverPort = prefs.getInt("server_port", 8000);
+        this.serverPort = prefs.getInt("server_port", 5000);
     }
 
     public RaspberryPiApi(String serverIp, int serverPort) {

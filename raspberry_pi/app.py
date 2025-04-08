@@ -39,6 +39,81 @@ prayer_scheduler = PrayerScheduler(audio_player)
 # Setup WebSocket server
 setup_websocket(app, audio_player)
 
+@app.route('/', methods=['GET'])
+def home():
+    """Home page showing system status."""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Prayer Alarm System</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                line-height: 1.6;
+            }
+            h1 {
+                color: #2c3e50;
+                border-bottom: 1px solid #eee;
+                padding-bottom: 10px;
+            }
+            .status {
+                background-color: #e8f5e9;
+                border-left: 5px solid #4caf50;
+                padding: 10px 15px;
+                margin: 20px 0;
+            }
+            .section {
+                margin: 30px 0;
+            }
+            h2 {
+                color: #34495e;
+            }
+            ul {
+                padding-left: 20px;
+            }
+            .api-path {
+                background-color: #f5f5f5;
+                padding: 5px;
+                border-radius: 3px;
+                font-family: monospace;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Prayer Alarm System</h1>
+        
+        <div class="status">
+            <strong>Status:</strong> Server is running
+        </div>
+        
+        <div class="section">
+            <h2>System Overview</h2>
+            <p>This system provides API endpoints for managing prayer times and alarms, as well as a WebSocket interface for push-to-talk functionality.</p>
+        </div>
+        
+        <div class="section">
+            <h2>Available API Endpoints</h2>
+            <ul>
+                <li><span class="api-path">/status</span> - Get server status</li>
+                <li><span class="api-path">/alarms</span> - Get all alarms</li>
+                <li><span class="api-path">/prayer-times</span> - Get prayer times</li>
+                <li><span class="api-path">/prayer-times/refresh</span> - Force refresh of prayer times</li>
+                <li><span class="api-path">/stop-audio</span> - Stop any playing audio</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>WebSocket</h2>
+            <p>WebSocket endpoint for push-to-talk: <span class="api-path">/ws</span></p>
+        </div>
+    </body>
+    </html>
+    '''
+
 @app.route('/status', methods=['GET'])
 def get_status():
     """Check if the server is running."""

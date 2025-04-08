@@ -1,5 +1,7 @@
 {pkgs}: {
   deps = [
+    pkgs.sqlite
+    pkgs.postgresql
     pkgs.portmidi
     pkgs.pkg-config
     pkgs.libpng
