@@ -176,11 +176,25 @@ class PrayerScheduler:
                 
                 # Play the adhan with highest priority
                 if next_prayer.custom_sound:
+                    logger.info(f"Using custom adhan sound for {next_prayer.name}")
                     self.audio_player.play_adhan(next_prayer.custom_sound)
                 else:
-                    # Use default adhan sound
+                    logger.info(f"Using default adhan sound for {next_prayer.name}")
                     self.audio_player.play_adhan(Config.DEFAULT_ADHAN_SOUND)
                     
                     # After adhan, announce the prayer using TTS
                     # This will be queued with the same adhan priority
                     self.audio_player.play_tts(f"It's time for {next_prayer.name} prayer", priority=self.audio_player.PRIORITY_ADHAN)
+                
+                # Broadcast adhan playing message to WebSocket clients
+                try:
+                    from websocket_server import broadcast_message
+                    import json
+                    message = {
+                        'type': 'adhan_playing',
+                        'prayer': next_prayer.name,
+                        'time': next_prayer.time.strftime('%H:%M')
+                    }
+                    broadcast_message(json.dumps(message))
+                except Exception as e:
+                    logger.warning(f"Error broadcasting adhan message: {str(e)}")

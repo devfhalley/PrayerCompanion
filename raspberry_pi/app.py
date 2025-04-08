@@ -7,6 +7,7 @@ This module initializes all components and starts the Flask server.
 import os
 import logging
 import time
+from datetime import datetime
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 import threading
 
@@ -216,6 +217,141 @@ def refresh_prayer_times():
     """Force refresh of prayer times from API."""
     prayer_scheduler.refresh_prayer_times()
     return jsonify({"status": "success", "message": "Prayer times refreshed"})
+
+@app.route('/adhan/test', methods=['POST'])
+def test_adhan():
+    """Test play the adhan sound."""
+    data = request.json
+    prayer_name = data.get('prayer_name', 'Test')
+    
+    # Send WebSocket notification
+    notification = {
+        "type": "adhan_playing",
+        "prayer": prayer_name if prayer_name else "Test",
+        "time": datetime.now().strftime("%H:%M")
+    }
+    broadcast_message(notification)
+    logger.info(f"Broadcasting adhan playing notification: {notification}")
+    
+    # Check if there's a custom sound for this prayer
+    if prayer_name:
+        db = get_db()
+        prayer_times = db.get_todays_prayer_times()
+        for prayer in prayer_times:
+            if prayer.name == prayer_name and prayer.custom_sound:
+                audio_player.play_adhan(prayer.custom_sound)
+                return jsonify({"status": "success", "message": f"Playing custom adhan for {prayer_name}"})
+    
+    # Use default adhan sound
+    audio_player.play_adhan(Config.DEFAULT_ADHAN_SOUND)
+    return jsonify({"status": "success", "message": "Playing default adhan"})
+
+@app.route('/adhan/sounds', methods=['GET'])
+def get_adhan_sounds():
+    """Get a list of available adhan sounds."""
+    sounds_dir = os.path.join(os.path.dirname(__file__), "sounds")
+    adhan_files = []
+    
+    # Check if the directory exists
+    if os.path.exists(sounds_dir):
+        # List all mp3 files
+        for file in os.listdir(sounds_dir):
+            if file.endswith(".mp3"):
+                file_path = os.path.join(sounds_dir, file)
+                adhan_files.append({
+                    "name": file,
+                    "path": file_path,
+                    "is_default": file_path == Config.DEFAULT_ADHAN_SOUND
+                })
+    
+    return jsonify({"status": "success", "sounds": adhan_files})
+
+@app.route('/adhan/upload', methods=['POST'])
+def upload_adhan():
+    """Upload a new adhan sound file."""
+    data = request.json
+    file_name = data.get('file_name')
+    file_content = data.get('file_content')  # Base64 encoded
+    
+    if not file_name or not file_content:
+        return jsonify({"status": "error", "message": "Missing file_name or file_content"}), 400
+    
+    try:
+        # Create sounds directory if it doesn't exist
+        sounds_dir = os.path.join(os.path.dirname(__file__), "sounds")
+        os.makedirs(sounds_dir, exist_ok=True)
+        
+        # Save the file
+        import base64
+        file_path = os.path.join(sounds_dir, file_name)
+        with open(file_path, 'wb') as f:
+            f.write(base64.b64decode(file_content))
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Adhan sound uploaded", 
+            "file_path": file_path
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/adhan/set-default', methods=['POST'])
+def set_default_adhan():
+    """Set the default adhan sound."""
+    data = request.json
+    file_path = data.get('file_path')
+    
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({"status": "error", "message": "Invalid file path"}), 400
+    
+    try:
+        # Set as default in config
+        Config.DEFAULT_ADHAN_SOUND = file_path
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Default adhan sound set"
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/adhan/set-for-prayer', methods=['POST'])
+def set_adhan_for_prayer():
+    """Set a custom adhan sound for a specific prayer."""
+    data = request.json
+    prayer_name = data.get('prayer_name')
+    file_path = data.get('file_path')
+    date_str = data.get('date')  # Optional, defaults to today
+    
+    if not prayer_name or not file_path or not os.path.exists(file_path):
+        return jsonify({"status": "error", "message": "Invalid prayer name or file path"}), 400
+    
+    try:
+        db = get_db()
+        
+        # Get the prayer time for today or specified date
+        if not date_str:
+            date_str = datetime.now().strftime("%Y-%m-%d")
+        
+        prayer_times = db.get_prayer_times_by_date(date_str)
+        updated = False
+        
+        for prayer in prayer_times:
+            if prayer.name == prayer_name:
+                prayer.custom_sound = file_path
+                db.update_prayer_time(prayer)
+                updated = True
+                break
+        
+        if not updated:
+            return jsonify({"status": "error", "message": f"Prayer {prayer_name} not found for date {date_str}"}), 404
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"Custom adhan set for {prayer_name}"
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/stop-audio', methods=['POST'])
 def stop_audio():

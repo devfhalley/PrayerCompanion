@@ -17,9 +17,19 @@
             Loading current time...
         </div>
         
+        <div class="adhan-ticker" id="adhan-ticker">
+            <div class="ticker-content" id="ticker-content">
+                Waiting for prayer time information...
+            </div>
+        </div>
+        
         <div class="next-prayer" id="next-prayer">
             <h3>Next Prayer</h3>
             <div id="next-prayer-details">Loading...</div>
+            <div class="prayer-actions">
+                <button id="set-adhan" class="btn btn-secondary btn-sm">Set Custom Adhan</button>
+                <button id="test-adhan" class="btn btn-accent btn-sm">Test Adhan</button>
+            </div>
         </div>
         
         <div id="prayer-times-list">
@@ -32,24 +42,123 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const dateSelector = document.getElementById('date-selector');
+    // Initialize global variables
+    window.prayerTimesState = {
+        dateSelector: null,
+        currentPrayerTimes: [],
+        isAdhanPlaying: false,
+        adhanPlayingTimeoutId: null,
+        wsConnection: null
+    };
+    
+    // Initialize current time display
+    updateCurrentTimeDisplay();
+    setInterval(updateCurrentTimeDisplay, 1000);
+    
+    // Initialize date selector
+    window.prayerTimesState.dateSelector = document.getElementById('date-selector');
     
     // Set date selector to today initially
     const today = new Date();
-    dateSelector.value = formatDateYMD(today);
+    if (window.prayerTimesState.dateSelector) {
+        window.prayerTimesState.dateSelector.value = formatDateYMD(today);
+    } else {
+        console.error('Date selector element not found');
+    }
+    
+    // Update current time display
+    function updateCurrentTimeDisplay() {
+        const currentTimeElement = document.getElementById('current-time');
+        if (currentTimeElement) {
+            currentTimeElement.textContent = new Date().toLocaleTimeString();
+        }
+    }
+    
+    // Initialize the prayer times page and load data
+    async function initializePrayerTimesPage() {
+        try {
+            // Initialize empty ticker
+            const tickerContent = document.getElementById('ticker-content');
+            if (tickerContent) {
+                tickerContent.innerHTML = 'Waiting for prayer time information...';
+            }
+            
+            // Setup WebSocket connection
+            setupWebSocket();
+            
+            // Load initial prayer times data
+            const today = formatDateYMD(new Date());
+            const prayerTimes = await fetchPrayerTimes(today);
+            window.prayerTimesState.currentPrayerTimes = prayerTimes || [];
+            
+            // Setup auto-update for ticker
+            setInterval(() => {
+                try {
+                    if (window.prayerTimesState.currentPrayerTimes && 
+                        Array.isArray(window.prayerTimesState.currentPrayerTimes)) {
+                        updateTicker(window.prayerTimesState.currentPrayerTimes);
+                    }
+                } catch (error) {
+                    console.error('Error updating ticker:', error);
+                }
+            }, 10000);
+            
+            // Initial ticker update
+            updateTicker(window.prayerTimesState.currentPrayerTimes);
+            
+        } catch (error) {
+            console.error('Error initializing prayer times page:', error);
+        }
+    }
+    
+    // Initial data load
+    initializePrayerTimesPage();
     
     // Fetch prayer times for the selected date
     async function fetchPrayerTimes(date) {
         try {
-            const formattedDate = formatDateYMD(date);
-            const response = await fetch(`/prayer-times?date=${formattedDate}`);
-            const prayerTimes = await response.json();
+            // Format date properly, whether it's a Date object or a string
+            const formattedDate = typeof date === 'string' ? date : formatDateYMD(date);
+            console.log('Fetching prayer times for date:', formattedDate);
+            
+            const apiUrl = `/prayer-times?date=${formattedDate}`;
+            console.log('API URL:', apiUrl);
+            
+            const response = await fetch(apiUrl);
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`Error fetching prayer times: ${response.status} ${response.statusText}`);
+            }
+            
+            const responseText = await response.text();
+            console.log('Response text:', responseText);
+            
+            // Parse the response as JSON
+            let prayerTimes;
+            try {
+                prayerTimes = JSON.parse(responseText);
+                console.log('Parsed prayer times:', prayerTimes);
+            } catch (parseError) {
+                console.error('Error parsing prayer times JSON:', parseError);
+                throw parseError;
+            }
+            
+            if (!Array.isArray(prayerTimes)) {
+                console.error('Prayer times is not an array:', prayerTimes);
+                throw new Error('Invalid prayer times data: not an array');
+            }
             
             const now = new Date();
             let nextPrayer = null;
             
             // Find the next prayer
             for (let i = 0; i < prayerTimes.length; i++) {
+                if (!prayerTimes[i] || !prayerTimes[i].time) {
+                    console.error('Invalid prayer time entry at index', i, prayerTimes[i]);
+                    continue;
+                }
+                
                 const prayerTime = new Date(prayerTimes[i].time);
                 if (prayerTime > now) {
                     nextPrayer = prayerTimes[i];
@@ -59,7 +168,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Update next prayer display
             const nextPrayerDetails = document.getElementById('next-prayer-details');
-            if (nextPrayer) {
+            if (!nextPrayerDetails) {
+                console.error('Next prayer details element not found');
+            } else if (nextPrayer) {
                 const prayerTime = new Date(nextPrayer.time);
                 const timeString = prayerTime.toLocaleTimeString('en-US', { 
                     hour: '2-digit', 
@@ -75,7 +186,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Display all prayer times
             const prayerTimesList = document.getElementById('prayer-times-list');
-            if (prayerTimes.length > 0) {
+            if (!prayerTimesList) {
+                console.error('Prayer times list element not found');
+            } else if (prayerTimes.length > 0) {
                 let html = '';
                 
                 prayerTimes.forEach(prayer => {
@@ -100,16 +213,32 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 prayerTimesList.innerHTML = '<p>No prayer times available for this date</p>';
             }
+            
+            // Return the prayer times for use in other functions
+            return prayerTimes;
         } catch (error) {
             console.error('Error fetching prayer times:', error);
-            document.getElementById('prayer-times-list').innerHTML = '<p>Error loading prayer times</p>';
+            const prayerTimesList = document.getElementById('prayer-times-list');
+            if (prayerTimesList) {
+                prayerTimesList.innerHTML = '<p>Error loading prayer times</p>';
+            }
+            return [];
         }
     }
     
     // Date change event
-    dateSelector.addEventListener('change', function() {
-        fetchPrayerTimes(this.value);
-    });
+    if (window.prayerTimesState.dateSelector) {
+        window.prayerTimesState.dateSelector.addEventListener('change', function() {
+            fetchPrayerTimes(this.value)
+                .then(prayerTimes => {
+                    window.prayerTimesState.currentPrayerTimes = prayerTimes || [];
+                    updateTicker(window.prayerTimesState.currentPrayerTimes);
+                })
+                .catch(error => {
+                    console.error('Error updating prayer times on date change:', error);
+                });
+        });
+    }
     
     // Refresh prayer times button
     document.getElementById('refresh-prayer-times').addEventListener('click', async function() {
@@ -119,21 +248,545 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (result.status === 'success') {
                 showNotification('Prayer times refreshed');
-                fetchPrayerTimes(dateSelector.value);
+                const today = formatDateYMD(new Date());
+                const dateToUse = window.prayerTimesState.dateSelector ? window.prayerTimesState.dateSelector.value : today;
+                
+                fetchPrayerTimes(dateToUse)
+                    .then(prayerTimes => {
+                        window.prayerTimesState.currentPrayerTimes = prayerTimes || [];
+                        updateTicker(window.prayerTimesState.currentPrayerTimes);
+                    })
+                    .catch(error => {
+                        console.error('Error updating prayer times after refresh:', error);
+                    });
             }
         } catch (error) {
             console.error('Error refreshing prayer times:', error);
         }
     });
     
-    // Initial fetch
-    fetchPrayerTimes(today);
+    // Get adhan sounds
+    async function getAdhanSounds() {
+        try {
+            const response = await fetch('/adhan/sounds');
+            const result = await response.json();
+            return result.sounds || [];
+        } catch (error) {
+            console.error('Error fetching adhan sounds:', error);
+            return [];
+        }
+    }
+    
+    // Test adhan for a prayer
+    async function testAdhan(prayerName) {
+        try {
+            const response = await fetch('/adhan/test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    prayer_name: prayerName
+                })
+            });
+            const result = await response.json();
+            showNotification(result.message);
+        } catch (error) {
+            console.error('Error testing adhan:', error);
+            showNotification('Error testing adhan', 'error');
+        }
+    }
+    
+    // Set custom adhan for a prayer
+    async function setAdhanForPrayer(prayerName, filePath) {
+        try {
+            const response = await fetch('/adhan/set-for-prayer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    prayer_name: prayerName,
+                    file_path: filePath
+                })
+            });
+            const result = await response.json();
+            showNotification(result.message);
+        } catch (error) {
+            console.error('Error setting adhan for prayer:', error);
+            showNotification('Error setting adhan', 'error');
+        }
+    }
+    
+    // Set default adhan
+    async function setDefaultAdhan(filePath) {
+        try {
+            const response = await fetch('/adhan/set-default', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    file_path: filePath
+                })
+            });
+            const result = await response.json();
+            showNotification(result.message);
+        } catch (error) {
+            console.error('Error setting default adhan:', error);
+            showNotification('Error setting default adhan', 'error');
+        }
+    }
+    
+    // Upload adhan file
+    async function uploadAdhan(file) {
+        try {
+            const reader = new FileReader();
+            
+            reader.onload = async function() {
+                const base64data = reader.result.split(',')[1];
+                
+                const response = await fetch('/adhan/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        file_name: file.name,
+                        file_content: base64data
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showNotification('Adhan sound uploaded successfully');
+                } else {
+                    showNotification('Error uploading adhan sound', 'error');
+                }
+            };
+            
+            reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('Error uploading adhan:', error);
+            showNotification('Error uploading adhan', 'error');
+        }
+    }
+    
+    // Test adhan button
+    document.getElementById('test-adhan').addEventListener('click', function() {
+        const prayerTimes = document.querySelectorAll('.prayer-time.current');
+        let prayerName = null;
+        
+        if (prayerTimes.length > 0) {
+            const nameElement = prayerTimes[0].querySelector('.prayer-name');
+            if (nameElement) {
+                prayerName = nameElement.textContent.trim();
+            }
+        }
+        
+        testAdhan(prayerName);
+    });
+    
+    // Set adhan button
+    document.getElementById('set-adhan').addEventListener('click', async function() {
+        const sounds = await getAdhanSounds();
+        
+        if (sounds.length === 0) {
+            showNotification('No adhan sounds found. Please upload one first.', 'error');
+            return;
+        }
+        
+        const prayerTimes = document.querySelectorAll('.prayer-time.current');
+        let prayerName = null;
+        
+        if (prayerTimes.length > 0) {
+            const nameElement = prayerTimes[0].querySelector('.prayer-name');
+            if (nameElement) {
+                prayerName = nameElement.textContent.trim();
+            }
+        }
+        
+        if (!prayerName) {
+            showNotification('No current prayer selected', 'error');
+            return;
+        }
+        
+        // Create modal dialog
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Select Adhan Sound for ${prayerName}</h2>
+                <div class="adhan-list">
+                    ${sounds.map(sound => `
+                        <div class="adhan-item" data-path="${sound.path}">
+                            <i class="fas fa-volume-up"></i>
+                            <span>${sound.name}</span>
+                            ${sound.is_default ? '<span class="default-badge">Default</span>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="upload-new">
+                    <h3>Upload New Adhan Sound</h3>
+                    <input type="file" id="adhan-upload" accept="audio/mp3">
+                </div>
+                <div class="modal-footer">
+                    <button id="set-as-default" class="btn btn-secondary">Set as Default</button>
+                    <button id="close-modal" class="btn">Close</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Add modal styling
+        const modalStyle = document.createElement('style');
+        modalStyle.textContent = `
+            .modal {
+                display: block;
+                position: fixed;
+                z-index: 1000;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0,0,0,0.5);
+            }
+            .modal-content {
+                background-color: white;
+                margin: 10% auto;
+                padding: 20px;
+                border-radius: 5px;
+                width: 80%;
+                max-width: 600px;
+            }
+            .close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+                cursor: pointer;
+            }
+            .adhan-list {
+                max-height: 300px;
+                overflow-y: auto;
+                margin: 20px 0;
+            }
+            .adhan-item {
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+            }
+            .adhan-item:hover {
+                background-color: #f5f5f5;
+            }
+            .adhan-item i {
+                margin-right: 10px;
+                color: var(--primary-color);
+            }
+            .default-badge {
+                background-color: var(--primary-color);
+                color: white;
+                padding: 2px 5px;
+                border-radius: 3px;
+                font-size: 12px;
+                margin-left: 10px;
+            }
+            .upload-new {
+                margin: 20px 0;
+            }
+            .modal-footer {
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                margin-top: 20px;
+            }
+        `;
+        document.head.appendChild(modalStyle);
+        
+        // Close modal
+        const closeModal = function() {
+            document.body.removeChild(modal);
+            document.head.removeChild(modalStyle);
+        };
+        
+        document.querySelector('.close').addEventListener('click', closeModal);
+        document.getElementById('close-modal').addEventListener('click', closeModal);
+        
+        // Handle adhan selection
+        const adhanItems = document.querySelectorAll('.adhan-item');
+        let selectedAdhan = null;
+        
+        adhanItems.forEach(item => {
+            item.addEventListener('click', function() {
+                // Deselect all items
+                adhanItems.forEach(i => i.style.backgroundColor = '');
+                
+                // Select this item
+                this.style.backgroundColor = '#e8f5e9';
+                selectedAdhan = this.dataset.path;
+            });
+        });
+        
+        // Handle file upload
+        document.getElementById('adhan-upload').addEventListener('change', function(e) {
+            if (this.files.length > 0) {
+                uploadAdhan(this.files[0]);
+                closeModal();
+            }
+        });
+        
+        // Set adhan for prayer
+        modal.addEventListener('dblclick', function(e) {
+            const adhanItem = e.target.closest('.adhan-item');
+            if (adhanItem) {
+                const filePath = adhanItem.dataset.path;
+                setAdhanForPrayer(prayerName, filePath);
+                closeModal();
+            }
+        });
+        
+        // Set as default
+        document.getElementById('set-as-default').addEventListener('click', function() {
+            if (selectedAdhan) {
+                setDefaultAdhan(selectedAdhan);
+                closeModal();
+            } else {
+                showNotification('Please select an adhan sound first', 'error');
+            }
+        });
+    });
+    
+    // Update the news ticker
+    function updateTicker(prayerTimes) {
+        const now = new Date();
+        const tickerContent = document.getElementById('ticker-content');
+        const tickerElement = document.getElementById('adhan-ticker');
+        
+        if (!tickerContent) {
+            console.error('Ticker content element not found');
+            return;
+        }
+        
+        // Validate that prayerTimes exists and is an array
+        if (!prayerTimes || !Array.isArray(prayerTimes) || prayerTimes.length === 0) {
+            console.log('No prayer times available for ticker update');
+            tickerContent.innerHTML = `
+                <i class="fas fa-info-circle"></i> 
+                Waiting for prayer time information... 
+                <i class="fas fa-clock"></i> Current time: ${new Date().toLocaleTimeString()}
+            `;
+            return;
+        }
+        
+        // Find the next prayer
+        let nextPrayer = null;
+        for (let i = 0; i < prayerTimes.length; i++) {
+            if (!prayerTimes[i] || !prayerTimes[i].time) {
+                console.error('Invalid prayer time entry at index', i, prayerTimes[i]);
+                continue;
+            }
+            
+            const prayerTime = new Date(prayerTimes[i].time);
+            if (prayerTime > now) {
+                nextPrayer = prayerTimes[i];
+                break;
+            }
+        }
+        
+        if (nextPrayer) {
+            const prayerTime = new Date(nextPrayer.time);
+            const timeString = prayerTime.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit'
+            });
+            
+            // Calculate time until next prayer
+            const timeDiff = prayerTime - now;
+            const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+            const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            tickerContent.innerHTML = `
+                <i class="fas fa-mosque"></i> Next Prayer: <strong>${nextPrayer.name}</strong> at ${timeString} 
+                (${hours > 0 ? hours + ' hours and ' : ''}${minutes} minutes from now) 
+                <i class="fas fa-clock"></i> Current time: ${new Date().toLocaleTimeString()}
+            `;
+            
+            // Check if it's adhan time (within 1 minute)
+            if (timeDiff <= 60 * 1000) {
+                document.body.classList.add('adhan-playing');
+                tickerContent.innerHTML = `
+                    <i class="fas fa-volume-up"></i> 
+                    ADHAN PLAYING NOW: <strong>${nextPrayer.name}</strong> Prayer 
+                    <i class="fas fa-volume-up"></i>
+                `;
+            } else {
+                document.body.classList.remove('adhan-playing');
+            }
+        } else {
+            // All prayers for today have passed
+            tickerContent.innerHTML = `
+                <i class="fas fa-moon"></i> All prayers for today have passed. 
+                <i class="fas fa-clock"></i> Current time: ${new Date().toLocaleTimeString()}
+            `;
+            document.body.classList.remove('adhan-playing');
+        }
+    }
+    
+    // We don't need this code anymore, as it's handled in initializePrayerTimesPage
+    // The following commented code is kept for reference
+    /*
+    fetchPrayerTimes(today).then(prayerTimes => {
+        // Set up ticker auto-update
+        setInterval(() => {
+            updateTicker(prayerTimes);
+        }, 10000); // Update every 10 seconds
+        
+        // Initial ticker update
+        updateTicker(prayerTimes);
+    }).catch(error => {
+        console.error('Error in initial prayer times fetch:', error);
+        // Still initialize ticker with empty data
+        updateTicker([]);
+    });
+    */
+    
+    // Initialize global for WebSocket connection
+    window.prayerTimesConnection = null;
+    
+    // Setup WebSocket connection for real-time adhan notifications
+    function setupWebSocket() {
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            console.log('Setting up WebSocket connection to:', wsUrl);
+            
+            // Close existing connection if it exists
+            if (window.prayerTimesConnection) {
+                window.prayerTimesConnection.close();
+            }
+            
+            // Create new connection
+            window.prayerTimesConnection = new WebSocket(wsUrl);
+            
+            window.prayerTimesConnection.onopen = function() {
+                console.log('WebSocket connection established');
+            };
+            
+            window.prayerTimesConnection.onmessage = function(event) {
+                try {
+                    if (!event || !event.data) {
+                        console.error('Received empty WebSocket message');
+                        return;
+                    }
+                    
+                    const message = JSON.parse(event.data);
+                    console.log('WebSocket message received:', message);
+                    
+                    handleWebSocketMessage(message);
+                } catch (error) {
+                    console.error('Error processing WebSocket message:', error);
+                }
+            };
+            
+            window.prayerTimesConnection.onclose = function() {
+                console.log('WebSocket connection closed, attempting to reconnect...');
+                // Try to reconnect after 3 seconds
+                setTimeout(setupWebSocket, 3000);
+            };
+            
+            window.prayerTimesConnection.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+        } catch (error) {
+            console.error('Error setting up WebSocket:', error);
+            // Still try to reconnect
+            setTimeout(setupWebSocket, 5000);
+        }
+    }
+    
+    // Handle WebSocket messages
+    function handleWebSocketMessage(message) {
+        // Handle adhan playing message
+        if (message && message.type === 'adhan_playing') {
+            console.log('Adhan playing notification received:', message);
+            
+            // Update ticker with adhan playing message
+            const tickerContent = document.getElementById('ticker-content');
+            if (!tickerContent) {
+                console.error('Ticker content element not found');
+                return;
+            }
+            
+            document.body.classList.add('adhan-playing');
+            
+            const prayerName = message.prayer || 'Unknown';
+            tickerContent.innerHTML = `
+                <i class="fas fa-volume-up"></i> 
+                ADHAN PLAYING NOW: <strong>${prayerName}</strong> Prayer 
+                <i class="fas fa-volume-up"></i>
+            `;
+            
+            // Refetch prayer times immediately to ensure we have the latest data
+            try {
+                const today = formatDateYMD(new Date());
+                console.log('Updating prayer times after adhan notification for date:', today);
+                setTimeout(() => {
+                    fetchPrayerTimes(today).then(pt => {
+                        console.log('Successfully updated prayer times after adhan notification');
+                    }).catch(err => {
+                        console.error('Error updating prayer times after adhan notification:', err);
+                    });
+                }, 1000);
+            } catch (fetchError) {
+                console.error('Error preparing prayer times fetch after adhan notification:', fetchError);
+            }
+            
+            // Clear existing timeout if it exists
+            if (window.prayerTimesState.adhanPlayingTimeoutId) {
+                clearTimeout(window.prayerTimesState.adhanPlayingTimeoutId);
+            }
+            
+            // Set a timeout to remove the adhan playing status after 5 minutes
+            window.prayerTimesState.adhanPlayingTimeoutId = setTimeout(() => {
+                document.body.classList.remove('adhan-playing');
+                window.prayerTimesState.adhanPlayingTimeoutId = null;
+                
+                // Re-fetch prayer times to update the display
+                try {
+                    const today = formatDateYMD(new Date());
+                    console.log('Updating prayer times after adhan playing timeout for date:', today);
+                    fetchPrayerTimes(today).then(pt => {
+                        console.log('Successfully updated prayer times after adhan timeout');
+                    }).catch(err => {
+                        console.error('Error updating prayer times after adhan timeout:', err);
+                    });
+                } catch (fetchError) {
+                    console.error('Error preparing prayer times fetch after adhan timeout:', fetchError);
+                }
+            }, 5 * 60 * 1000);
+        }
+    }
+    
+    // Start WebSocket connection
+    setupWebSocket();
     
     // Add some styling
     const style = document.createElement('style');
     style.textContent = `
         .prayer-time.passed { opacity: 0.5; }
         .prayer-time.current { background-color: #e8f5e9; font-weight: bold; }
+        #ticker-content i { margin: 0 5px; }
+        body.adhan-playing { animation: adhan-pulse 2s infinite; }
+        @keyframes adhan-pulse {
+            0% { background-color: var(--light-bg); }
+            50% { background-color: #fff8e1; }
+            100% { background-color: var(--light-bg); }
+        }
     `;
     document.head.appendChild(style);
 });
