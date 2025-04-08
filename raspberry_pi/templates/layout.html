@@ -20,6 +20,7 @@
                     <li><a href="{{ url_for('web_alarms') }}" {% if request.endpoint == 'web_alarms' %}class="active"{% endif %}>Alarms</a></li>
                     <li><a href="{{ url_for('web_push_to_talk') }}" {% if request.endpoint == 'web_push_to_talk' %}class="active"{% endif %}>Push-to-Talk</a></li>
                     <li><a href="{{ url_for('web_murattal') }}" {% if request.endpoint == 'web_murattal' %}class="active"{% endif %}>Murattal</a></li>
+                    <li><a href="{{ url_for('web_settings') }}" {% if request.endpoint == 'web_settings' %}class="active"{% endif %}>Settings</a></li>
                 </ul>
             </nav>
         </div>
@@ -37,6 +38,8 @@
     
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/audio_status.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/global_ticker.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

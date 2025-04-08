@@ -16,6 +16,7 @@ body {
     color: var(--text-color);
     margin: 0;
     padding: 0;
+    padding-bottom: 50px; /* Add padding to bottom for global ticker */
     background-color: var(--light-bg);
 }
 
@@ -392,6 +393,7 @@ footer {
     text-align: center;
     padding: 20px 0;
     margin-top: 40px;
+    margin-bottom: 40px; /* Add margin to bottom for global ticker */
 }
 
 /* Mobile responsiveness */

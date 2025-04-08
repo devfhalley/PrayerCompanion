@@ -1,0 +1,408 @@
+{% extends "layout.html" %}
+
+{% block title %}Settings - Prayer Alarm System{% endblock %}
+
+{% block content %}
+<h1>System Settings</h1>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Adhan (Prayer Call) Settings</h2>
+    </div>
+    <div class="card-content">
+        <div class="form-group">
+            <label for="default-adhan">Default Adhan Sound</label>
+            <div class="sound-selector">
+                <select id="default-adhan" class="form-control">
+                    {% for sound in adhan_sounds %}
+                    <option value="{{ sound.path }}" {% if sound.path == default_adhan %}selected{% endif %}>{{ sound.name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn btn-secondary" onclick="testAdhan()">
+                    <i class="fas fa-play"></i> Test
+                </button>
+            </div>
+        </div>
+
+        <h3>Custom Adhan for Each Prayer</h3>
+        <div class="prayer-adhan-settings">
+            {% for prayer in prayers %}
+            <div class="form-group">
+                <label for="adhan-{{ prayer.name|lower }}">{{ prayer.name }}</label>
+                <div class="sound-selector">
+                    <select id="adhan-{{ prayer.name|lower }}" class="form-control prayer-adhan-selector" data-prayer="{{ prayer.name }}">
+                        <option value="">Use Default</option>
+                        {% for sound in adhan_sounds %}
+                        <option value="{{ sound.path }}" {% if sound.path == prayer.custom_sound %}selected{% endif %}>{{ sound.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-secondary" onclick="testAdhanForPrayer('{{ prayer.name }}')">
+                        <i class="fas fa-play"></i> Test
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Upload New Adhan Sound</h2>
+    </div>
+    <div class="card-content">
+        <div class="upload-area" id="adhan-upload-area">
+            <div class="upload-icon">
+                <i class="fas fa-cloud-upload-alt"></i>
+            </div>
+            <p>Drag and drop an adhan MP3 file here or click to browse</p>
+            <input type="file" id="adhan-file" accept=".mp3" style="display: none;">
+        </div>
+        <div class="upload-progress" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <p class="progress-text">Uploading... 0%</p>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Location Settings</h2>
+    </div>
+    <div class="card-content">
+        <div class="form-group">
+            <label for="prayer-city">City</label>
+            <input type="text" id="prayer-city" class="form-control" value="{{ prayer_city }}" placeholder="Jakarta">
+        </div>
+        <div class="form-group">
+            <label for="prayer-country">Country</label>
+            <input type="text" id="prayer-country" class="form-control" value="{{ prayer_country }}" placeholder="Indonesia">
+        </div>
+        <div class="form-group">
+            <label for="calculation-method">Prayer Time Calculation Method</label>
+            <select id="calculation-method" class="form-control">
+                <option value="0" {% if calculation_method == 0 %}selected{% endif %}>Shia Ithna-Ashari</option>
+                <option value="1" {% if calculation_method == 1 %}selected{% endif %}>University of Islamic Sciences, Karachi</option>
+                <option value="2" {% if calculation_method == 2 %}selected{% endif %}>Islamic Society of North America</option>
+                <option value="3" {% if calculation_method == 3 %}selected{% endif %}>Muslim World League</option>
+                <option value="4" {% if calculation_method == 4 %}selected{% endif %}>Umm al-Qura University, Makkah</option>
+                <option value="5" {% if calculation_method == 5 %}selected{% endif %}>Egyptian General Authority of Survey</option>
+                <option value="7" {% if calculation_method == 7 %}selected{% endif %}>Institute of Geophysics, University of Tehran</option>
+                <option value="11" {% if calculation_method == 11 %}selected{% endif %}>Indonesian Ministry of Religious Affairs</option>
+                <option value="12" {% if calculation_method == 12 %}selected{% endif %}>Union des organisations islamiques de France</option>
+                <option value="13" {% if calculation_method == 13 %}selected{% endif %}>Spiritual Administration of Muslims of Russia</option>
+            </select>
+        </div>
+        <button id="save-location" class="btn">Save Location Settings</button>
+        <button id="refresh-prayer-times" class="btn btn-secondary">Refresh Prayer Times</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>System Preferences</h2>
+    </div>
+    <div class="card-content">
+        <div class="form-group">
+            <label for="volume">System Volume</label>
+            <input type="range" id="volume" class="form-control" min="0" max="100" value="{{ volume }}">
+            <span id="volume-value">{{ volume }}%</span>
+        </div>
+        <button id="save-preferences" class="btn">Save Preferences</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize volume slider
+    const volumeSlider = document.getElementById('volume');
+    const volumeValue = document.getElementById('volume-value');
+    
+    volumeSlider.addEventListener('input', function() {
+        volumeValue.textContent = volumeSlider.value + '%';
+    });
+    
+    // Setup adhan upload functionality
+    const adhanUploadArea = document.getElementById('adhan-upload-area');
+    const adhanFileInput = document.getElementById('adhan-file');
+    
+    adhanUploadArea.addEventListener('click', function() {
+        adhanFileInput.click();
+    });
+    
+    adhanUploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        adhanUploadArea.classList.add('drag-over');
+    });
+    
+    adhanUploadArea.addEventListener('dragleave', function() {
+        adhanUploadArea.classList.remove('drag-over');
+    });
+    
+    adhanUploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        adhanUploadArea.classList.remove('drag-over');
+        
+        if (e.dataTransfer.files.length) {
+            uploadAdhanFile(e.dataTransfer.files[0]);
+        }
+    });
+    
+    adhanFileInput.addEventListener('change', function() {
+        if (adhanFileInput.files.length) {
+            uploadAdhanFile(adhanFileInput.files[0]);
+        }
+    });
+    
+    // Handle default adhan selection
+    document.getElementById('default-adhan').addEventListener('change', function() {
+        setDefaultAdhan(this.value);
+    });
+    
+    // Handle prayer-specific adhan selection
+    document.querySelectorAll('.prayer-adhan-selector').forEach(function(selector) {
+        selector.addEventListener('change', function() {
+            const prayer = this.getAttribute('data-prayer');
+            const sound = this.value;
+            setAdhanForPrayer(prayer, sound);
+        });
+    });
+    
+    // Location settings
+    document.getElementById('save-location').addEventListener('click', saveLocationSettings);
+    document.getElementById('refresh-prayer-times').addEventListener('click', refreshPrayerTimes);
+    
+    // System preferences
+    document.getElementById('save-preferences').addEventListener('click', savePreferences);
+});
+
+// Function to test default adhan
+function testAdhan() {
+    fetch('/adhan/test', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('Playing default adhan', 'success');
+        } else {
+            showNotification('Error playing adhan', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error playing adhan', 'error');
+    });
+}
+
+// Function to test prayer-specific adhan
+function testAdhanForPrayer(prayer) {
+    fetch('/adhan/test', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prayer_name: prayer })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`Playing adhan for ${prayer}`, 'success');
+        } else {
+            showNotification('Error playing adhan', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error playing adhan', 'error');
+    });
+}
+
+// Function to set default adhan
+function setDefaultAdhan(soundPath) {
+    fetch('/adhan/default', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ sound_path: soundPath })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('Default adhan sound updated', 'success');
+        } else {
+            showNotification('Error updating default adhan', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error updating default adhan', 'error');
+    });
+}
+
+// Function to set adhan for a specific prayer
+function setAdhanForPrayer(prayer, soundPath) {
+    fetch('/adhan/prayer', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            prayer_name: prayer,
+            sound_path: soundPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`Adhan for ${prayer} updated`, 'success');
+        } else {
+            showNotification('Error updating adhan for prayer', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error updating adhan for prayer', 'error');
+    });
+}
+
+// Function to upload adhan file
+function uploadAdhanFile(file) {
+    if (!file.type.match('audio/mp3') && !file.type.match('audio/mpeg')) {
+        showNotification('Please select an MP3 file', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const uploadArea = document.getElementById('adhan-upload-area');
+    const progressContainer = document.querySelector('.upload-progress');
+    const progressFill = document.querySelector('.progress-fill');
+    const progressText = document.querySelector('.progress-text');
+    
+    uploadArea.style.display = 'none';
+    progressContainer.style.display = 'block';
+    
+    fetch('/adhan/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        uploadArea.style.display = 'block';
+        progressContainer.style.display = 'none';
+        
+        if (data.status === 'success') {
+            showNotification('Adhan sound uploaded successfully', 'success');
+            // Reload the page to show the new adhan in the lists
+            window.location.reload();
+        } else {
+            showNotification('Error uploading adhan sound', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        uploadArea.style.display = 'block';
+        progressContainer.style.display = 'none';
+        showNotification('Error uploading adhan sound', 'error');
+    });
+    
+    // Simulate upload progress (since we don't have a real progress event)
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress += 5;
+        if (progress > 90) clearInterval(progressInterval);
+        
+        progressFill.style.width = `${progress}%`;
+        progressText.textContent = `Uploading... ${progress}%`;
+    }, 200);
+}
+
+// Function to save location settings
+function saveLocationSettings() {
+    const city = document.getElementById('prayer-city').value;
+    const country = document.getElementById('prayer-country').value;
+    const calculationMethod = document.getElementById('calculation-method').value;
+    
+    fetch('/settings/location', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            city: city,
+            country: country,
+            calculation_method: parseInt(calculationMethod)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('Location settings saved', 'success');
+        } else {
+            showNotification('Error saving location settings', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error saving location settings', 'error');
+    });
+}
+
+// Function to refresh prayer times
+function refreshPrayerTimes() {
+    fetch('/prayer-times/refresh', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('Prayer times refreshed successfully', 'success');
+        } else {
+            showNotification('Error refreshing prayer times', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error refreshing prayer times', 'error');
+    });
+}
+
+// Function to save system preferences
+function savePreferences() {
+    const volume = document.getElementById('volume').value;
+    
+    fetch('/settings/preferences', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            volume: parseInt(volume)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('Preferences saved', 'success');
+        } else {
+            showNotification('Error saving preferences', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error saving preferences', 'error');
+    });
+}
+</script>
+{% endblock %}

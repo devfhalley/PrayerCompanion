@@ -1,0 +1,120 @@
+/**
+ * Audio Status Monitor
+ * This script periodically checks if audio is playing on the server
+ * and displays a visual indicator in the web interface.
+ */
+
+// DOM elements
+let audioStatusElement = null;
+let statusInterval = null;
+
+// Initialize the audio status monitor
+function initAudioStatusMonitor() {
+    console.log("Initializing audio status monitor...");
+    
+    // Create audio status element if it doesn't exist
+    if (!document.getElementById('audio-status')) {
+        audioStatusElement = document.createElement('div');
+        audioStatusElement.id = 'audio-status';
+        audioStatusElement.className = 'audio-status hidden';
+        audioStatusElement.innerHTML = `
+            <div class="audio-status-icon">
+                <span class="playing-icon">🔊</span>
+            </div>
+            <div class="audio-status-text">
+                <span class="audio-type">Loading...</span>
+            </div>
+        `;
+        document.body.appendChild(audioStatusElement);
+        
+        // Add CSS for the audio status element
+        const style = document.createElement('style');
+        style.textContent = `
+            .audio-status {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background-color: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 10px 15px;
+                border-radius: 5px;
+                display: flex;
+                align-items: center;
+                z-index: 9999;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                transition: opacity 0.3s ease-in-out;
+            }
+            .audio-status.hidden {
+                opacity: 0;
+                pointer-events: none;
+            }
+            .audio-status-icon {
+                margin-right: 10px;
+                font-size: 1.2em;
+            }
+            .audio-status-text {
+                font-size: 0.9em;
+            }
+            .playing-icon {
+                display: inline-block;
+                animation: pulsate 1s infinite;
+            }
+            @keyframes pulsate {
+                0% { opacity: 0.5; }
+                50% { opacity: 1; }
+                100% { opacity: 0.5; }
+            }
+        `;
+        document.head.appendChild(style);
+    } else {
+        audioStatusElement = document.getElementById('audio-status');
+    }
+    
+    // Start periodic status check
+    if (statusInterval) {
+        clearInterval(statusInterval);
+    }
+    
+    statusInterval = setInterval(checkAudioStatus, 1000);
+    
+    // Initial check
+    checkAudioStatus();
+}
+
+// Check if audio is currently playing on the server
+async function checkAudioStatus() {
+    try {
+        const response = await fetch('/status');
+        const data = await response.json();
+        
+        if (data.audio_playing) {
+            showAudioPlaying(data.audio_type);
+        } else {
+            hideAudioPlaying();
+        }
+    } catch (error) {
+        console.error('Error checking audio status:', error);
+        hideAudioPlaying();
+    }
+}
+
+// Show the audio playing indicator
+function showAudioPlaying(audioType) {
+    if (audioStatusElement) {
+        audioStatusElement.classList.remove('hidden');
+        const audioTypeElement = audioStatusElement.querySelector('.audio-type');
+        if (audioTypeElement) {
+            audioTypeElement.textContent = `Playing: ${audioType}`;
+        }
+    }
+}
+
+// Hide the audio playing indicator
+function hideAudioPlaying() {
+    if (audioStatusElement) {
+        audioStatusElement.classList.add('hidden');
+    }
+}
+
+// Initialize when the document is ready
+document.addEventListener('DOMContentLoaded', initAudioStatusMonitor);

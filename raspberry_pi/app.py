@@ -9,6 +9,7 @@ import logging
 import time
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template, redirect, url_for
+from werkzeug.utils import secure_filename
 import threading
 
 from database import init_db, get_db
@@ -125,11 +126,26 @@ def home():
 
 @app.route('/status', methods=['GET'])
 def get_status():
-    """Check if the server is running."""
+    """Check if the server is running and get audio status."""
+    is_playing = audio_player.is_playing()
+    current_priority = audio_player.get_current_priority()
+    
+    # Map priority to a human-readable name
+    audio_type = "None"
+    if is_playing:
+        if current_priority == audio_player.PRIORITY_ADHAN:
+            audio_type = "Adhan"
+        elif current_priority == audio_player.PRIORITY_ALARM:
+            audio_type = "Alarm"
+        elif current_priority == audio_player.PRIORITY_MURATTAL:
+            audio_type = "Murattal"
+    
     return jsonify({
         "status": "ok",
         "service": "Prayer Alarm System",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "audio_playing": is_playing,
+        "audio_type": audio_type
     })
 
 @app.route('/alarms', methods=['GET'])
@@ -424,6 +440,66 @@ def web_push_to_talk():
 def web_murattal():
     """Web interface Murattal player page."""
     return render_template('murattal.html')
+
+@app.route('/web/settings', methods=['GET'])
+def web_settings():
+    """Web interface settings page."""
+    # Get available adhan sounds
+    adhan_dir = os.path.join(os.path.dirname(__file__), "sounds")
+    adhan_sounds = []
+    for file in os.listdir(adhan_dir):
+        if file.endswith(".mp3"):
+            adhan_sounds.append({
+                "name": file,
+                "path": os.path.join(adhan_dir, file)
+            })
+    
+    # Get prayer times for today to display custom adhan settings
+    db = get_db()
+    prayer_times = db.get_todays_prayer_times()
+    
+    # Get configuration values
+    return render_template('settings.html', 
+                          adhan_sounds=adhan_sounds, 
+                          prayers=prayer_times, 
+                          default_adhan=Config.DEFAULT_ADHAN_SOUND,
+                          prayer_city=Config.PRAYER_CITY,
+                          prayer_country=Config.PRAYER_COUNTRY,
+                          calculation_method=Config.PRAYER_CALCULATION_METHOD,
+                          volume=90)  # Default volume, replace with actual stored value if implemented
+
+# Settings-specific endpoints implemented below
+
+@app.route('/settings/location', methods=['POST'])
+def update_location_settings():
+    """Update location settings."""
+    data = request.json
+    city = data.get('city')
+    country = data.get('country')
+    calculation_method = data.get('calculation_method')
+    
+    if not city or not country:
+        return jsonify({"status": "error", "message": "Missing city or country"}), 400
+    
+    # Update Config values
+    Config.PRAYER_CITY = city
+    Config.PRAYER_COUNTRY = country
+    
+    if calculation_method is not None:
+        Config.PRAYER_CALCULATION_METHOD = calculation_method
+    
+    return jsonify({"status": "success", "message": "Location settings updated"})
+
+@app.route('/settings/preferences', methods=['POST'])
+def update_preferences():
+    """Update system preferences."""
+    data = request.json
+    volume = data.get('volume')
+    
+    # In a real implementation, you would save these settings and apply them
+    # For now, we just acknowledge the change
+    
+    return jsonify({"status": "success", "message": "Preferences updated"})
 
 def start_schedulers():
     """Start the prayer and alarm schedulers."""
