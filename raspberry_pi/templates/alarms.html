@@ -22,14 +22,37 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Fetch all alarms
     async function fetchAlarms() {
+        // Show loading indicator with spinner
+        const alarmsList = document.getElementById('alarms-list');
+        alarmsList.innerHTML = `
+            <div class="text-center my-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading alarms...</p>
+            </div>
+        `;
+        
         try {
-            const response = await fetch('/alarms');
-            const alarms = await response.json();
+            console.log('Fetching alarms from server...');
+            // Add cache-busting timestamp to prevent browser caching
+            const timestamp = new Date().getTime();
+            const response = await fetch(`/alarms?t=${timestamp}`, {
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            });
             
-            const alarmsList = document.getElementById('alarms-list');
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
+            const alarms = await response.json();
+            console.log('Received alarm data:', alarms);
             
             if (alarms.length > 0) {
-                let html = '<table>';
+                let html = '<table class="table">';
                 html += `
                     <thead>
                         <tr>
@@ -46,7 +69,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     let timeString = '';
                     
                     // Handle the time display with proper validation
-                    if (alarm.time_in_millis && !isNaN(alarm.time_in_millis)) {
+                    if (alarm.time_str) {
+                        timeString = alarm.time_str;
+                    } else if (alarm.time) {
+                        const time = new Date(alarm.time);
+                        if (!isNaN(time.getTime())) {
+                            timeString = time.toLocaleTimeString('en-US', { 
+                                hour: '2-digit', 
+                                minute: '2-digit'
+                            });
+                        }
+                    } else if (alarm.time_in_millis && !isNaN(alarm.time_in_millis)) {
                         // Valid timestamp
                         const time = new Date(parseInt(alarm.time_in_millis));
                         if (!isNaN(time.getTime())) {
@@ -59,24 +92,32 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Fallback for invalid dates
                     if (!timeString) {
-                        // Try to extract time from time_str if available
-                        if (alarm.time_str) {
-                            timeString = alarm.time_str;
-                        } else {
-                            timeString = "N/A";
-                        }
+                        timeString = "N/A";
                     }
                     
                     let repeatText = 'One Time';
                     if (alarm.repeating) {
                         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                         const repeatDays = [];
-                        alarm.days.forEach((enabled, index) => {
-                            if (enabled) {
-                                repeatDays.push(days[index]);
-                            }
-                        });
-                        repeatText = repeatDays.join(', ');
+                        
+                        // Check if days is an array of booleans
+                        if (Array.isArray(alarm.days) && alarm.days.some(day => typeof day === 'boolean')) {
+                            alarm.days.forEach((enabled, index) => {
+                                if (enabled) {
+                                    repeatDays.push(days[index]);
+                                }
+                            });
+                        } 
+                        // Check if days is an array of indices
+                        else if (Array.isArray(alarm.days) && alarm.days.some(day => typeof day === 'number')) {
+                            alarm.days.forEach(dayIndex => {
+                                if (dayIndex >= 0 && dayIndex < days.length) {
+                                    repeatDays.push(days[dayIndex]);
+                                }
+                            });
+                        }
+                        
+                        repeatText = repeatDays.length > 0 ? repeatDays.join(', ') : 'Repeating';
                     }
                     
                     html += `
@@ -85,10 +126,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             <td>${alarm.enabled ? 'Enabled' : 'Disabled'}</td>
                             <td>${repeatText}</td>
                             <td>
-                                <button class="btn btn-icon btn-danger delete-alarm" data-id="${alarm.id}">
+                                <button class="btn btn-sm btn-danger delete-alarm" data-id="${alarm.id}">
                                     <i class="fas fa-trash"></i>
                                 </button>
-                                <button class="btn btn-icon ${alarm.enabled ? 'btn-secondary' : 'btn'} toggle-alarm" data-id="${alarm.id}" data-enabled="${alarm.enabled}">
+                                <button class="btn btn-sm ${alarm.enabled ? 'btn-secondary' : 'btn'} toggle-alarm" data-id="${alarm.id}" data-enabled="${alarm.enabled}">
                                     <i class="fas ${alarm.enabled ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
                                 </button>
                             </td>
@@ -116,49 +157,78 @@ document.addEventListener('DOMContentLoaded', function() {
                         await toggleAlarm(id, enabled);
                     });
                 });
+                
+                console.log('Alarm list successfully loaded and event listeners attached');
             } else {
-                alarmsList.innerHTML = '<p>No alarms set</p>';
+                alarmsList.innerHTML = '<div class="alert alert-info mt-3"><i class="fas fa-info-circle"></i> No alarms set</div>';
+                console.log('No alarms found in response');
             }
         } catch (error) {
             console.error('Error fetching alarms:', error);
-            document.getElementById('alarms-list').innerHTML = '<p>Error loading alarms</p>';
+            alarmsList.innerHTML = `
+                <div class="alert alert-danger mt-3">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Error loading alarms: ${error.message}
+                    <button class="btn btn-sm btn-outline-danger ms-3" onclick="window.location.reload()">
+                        <i class="fas fa-sync"></i> Retry
+                    </button>
+                </div>
+            `;
         }
     }
     
     // Delete an alarm
     async function deleteAlarm(id) {
         try {
-            // First update the UI to show the deletion is in progress
-            const alarmRow = document.querySelector(`button.delete-alarm[data-id="${id}"]`).closest('tr');
-            if (alarmRow) {
-                alarmRow.style.opacity = '0.5';
-                alarmRow.style.backgroundColor = '#ffeeee';
+            // Show deletion in progress
+            const deleteButton = document.querySelector(`button.delete-alarm[data-id="${id}"]`);
+            if (!deleteButton) {
+                console.error('Could not find delete button for alarm ID:', id);
+                // If we can't find the button, refresh the list
+                await fetchAlarms();
+                return;
             }
             
-            const response = await fetch(`/alarms/${id}`, { method: 'DELETE' });
+            const alarmRow = deleteButton.closest('tr');
+            if (alarmRow) {
+                // Visual feedback
+                alarmRow.style.opacity = '0.5';
+                alarmRow.style.backgroundColor = '#ffeeee';
+                
+                // Disable the button to prevent double-clicks
+                deleteButton.disabled = true;
+            }
+            
+            // Make the deletion request
+            console.log('Sending DELETE request for alarm ID:', id);
+            const response = await fetch(`/alarms/${id}`, { 
+                method: 'DELETE',
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
             const result = await response.json();
+            console.log('Delete response:', result);
             
             if (result.status === 'success') {
-                showNotification('Alarm deleted');
+                showNotification('Alarm deleted successfully');
                 
-                // Remove the row from the UI immediately without requiring a full refresh
-                if (alarmRow) {
-                    alarmRow.remove();
-                    
-                    // Check if we have any alarms left
-                    const remainingRows = document.querySelectorAll('#alarms-list tbody tr');
-                    if (remainingRows.length === 0) {
-                        document.getElementById('alarms-list').innerHTML = '<p>No alarms set</p>';
-                    }
-                } else {
-                    // Fallback: if we couldn't find the row for some reason, refresh the entire list
-                    fetchAlarms();
-                }
+                // Simply refresh the entire alarm list to guarantee it's up to date
+                // This is the most reliable approach
+                await fetchAlarms();
+            } else {
+                throw new Error(result.message || 'Unknown error when deleting alarm');
             }
         } catch (error) {
             console.error('Error deleting alarm:', error);
-            // If there's an error, refresh the entire list to ensure it's in a consistent state
-            fetchAlarms();
+            showNotification('Error deleting alarm: ' + error.message, 'error');
+            // Refresh the list to ensure consistent state
+            await fetchAlarms();
         }
     }
     

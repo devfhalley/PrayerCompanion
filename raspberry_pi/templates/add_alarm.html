@@ -196,28 +196,63 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
+            // Display a loading overlay
+            const loadingOverlay = document.createElement('div');
+            loadingOverlay.id = 'loading-overlay';
+            loadingOverlay.style.position = 'fixed';
+            loadingOverlay.style.top = '0';
+            loadingOverlay.style.left = '0';
+            loadingOverlay.style.width = '100vw';
+            loadingOverlay.style.height = '100vh';
+            loadingOverlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            loadingOverlay.style.zIndex = '9999';
+            loadingOverlay.style.display = 'flex';
+            loadingOverlay.style.justifyContent = 'center';
+            loadingOverlay.style.alignItems = 'center';
+            loadingOverlay.innerHTML = '<div class="spinner-border text-light" role="status"><span class="visually-hidden">Loading...</span></div>';
+            document.body.appendChild(loadingOverlay);
+            
+            console.log('Sending alarm data:', data);
             const response = await fetch('/alarms', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache'
                 },
                 body: JSON.stringify(data)
             });
             
+            // Check if the response is OK
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
             const result = await response.json();
+            console.log('Server response:', result);
             
             if (result.status === 'success') {
                 showNotification('Alarm added successfully');
-                // Redirect to alarms page
-                window.location.href = '/web/alarms';
+                // Force redirect to alarms page with a timestamp to prevent caching
+                const timestamp = new Date().getTime();
+                console.log('Redirecting to alarms page...');
+                
+                // Use setTimeout to ensure the notification is shown before redirecting
+                setTimeout(() => {
+                    window.location.href = `/web/alarms?t=${timestamp}`;
+                }, 500);
             } else {
-                showNotification(result.message || 'Failed to add alarm', 'error');
-                resetSubmitButton();
+                throw new Error(result.message || 'Unknown error when adding alarm');
             }
         } catch (error) {
             console.error('Error adding alarm:', error);
-            showNotification('Failed to add alarm', 'error');
+            showNotification('Error adding alarm: ' + error.message, 'error');
             resetSubmitButton();
+            
+            // Remove loading overlay if it exists
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.remove();
+            }
         }
     });
     
