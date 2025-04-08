@@ -465,3 +465,190 @@ footer {
     50% { opacity: 0.8; }
     100% { opacity: 1; }
 }
+
+/* Prayer Countdown Widget */
+.prayer-countdown {
+    text-align: center;
+    margin: 20px 0;
+    padding: 20px;
+    background: linear-gradient(135deg, #2b8a3e, #2c6c3b);
+    border-radius: 10px;
+    color: white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    position: relative;
+}
+
+.prayer-countdown.floating {
+    position: fixed;
+    bottom: 60px;
+    right: 20px;
+    max-width: 320px;
+    z-index: 9000;
+    margin: 0;
+    transform: translateY(0);
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    animation: float-in 0.5s forwards;
+}
+
+.prayer-countdown.floating.hidden {
+    transform: translateY(200%);
+    pointer-events: none;
+    opacity: 0;
+}
+
+@keyframes float-in {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.countdown-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.countdown-close-btn:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+.prayer-countdown.floating .countdown-header {
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.prayer-countdown.floating .countdown-timer {
+    gap: 10px;
+}
+
+.prayer-countdown.floating .countdown-value {
+    font-size: 28px;
+    width: 60px;
+    height: 60px;
+    line-height: 60px;
+}
+
+.prayer-countdown.floating .countdown-separator {
+    font-size: 28px;
+    line-height: 60px;
+}
+
+.prayer-countdown.floating .countdown-label {
+    font-size: 12px;
+}
+
+.countdown-header {
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.countdown-timer {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.countdown-segment {
+    text-align: center;
+    position: relative;
+}
+
+.countdown-value {
+    font-size: 36px;
+    font-weight: bold;
+    width: 80px;
+    height: 80px;
+    line-height: 80px;
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    margin-bottom: 5px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.countdown-value:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.countdown-label {
+    font-size: 14px;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+.countdown-separator {
+    font-size: 36px;
+    font-weight: bold;
+    line-height: 80px;
+}
+
+@keyframes countdown-flip {
+    0% {
+        transform: rotateX(0);
+        opacity: 1;
+    }
+    50% {
+        transform: rotateX(90deg);
+        opacity: 0.2;
+    }
+    100% {
+        transform: rotateX(0);
+        opacity: 1;
+    }
+}
+
+.countdown-value.animate {
+    animation: countdown-flip 0.5s ease-in-out;
+}
+
+.prayer-progress-bar {
+    width: 100%;
+    height: 10px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    margin-top: 20px;
+    overflow: hidden;
+}
+
+.prayer-progress-fill {
+    height: 100%;
+    background-color: #4CAF50;
+    border-radius: 5px;
+    width: 0%;
+    transition: width 1s linear;
+}
+
+/* Mobile responsiveness for floating widget */
+@media (max-width: 768px) {
+    .prayer-countdown.floating {
+        left: 20px;
+        right: 20px;
+        max-width: none;
+    }
+}

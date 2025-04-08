@@ -41,6 +41,38 @@
     <script src="{{ url_for('static', filename='js/audio_status.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global_ticker.js') }}"></script>
     <script src="{{ url_for('static', filename='js/volume_control.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/prayer_countdown.js') }}"></script>
     {% block scripts %}{% endblock %}
+    
+    {% if request.endpoint != 'web_prayer_times' and request.endpoint != 'web_home' %}
+    <script>
+        // Initialize floating prayer countdown widget on all pages except Prayer Times and Home
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create state object for prayer times
+            const prayerTimesState = {
+                currentPrayerTimes: [],
+                dateSelector: null
+            };
+            
+            // Fetch prayer times for countdown widget
+            async function fetchPrayerTimesForCountdown() {
+                try {
+                    const response = await fetch('/prayer-times');
+                    const prayerTimes = await response.json();
+                    prayerTimesState.currentPrayerTimes = prayerTimes;
+                    return prayerTimes;
+                } catch (error) {
+                    console.error('Error fetching prayer times for floating countdown:', error);
+                    return [];
+                }
+            }
+            
+            // Fetch times first, then create the floating countdown widget
+            fetchPrayerTimesForCountdown().then(() => {
+                createFloatingCountdownWidget(prayerTimesState);
+            });
+        });
+    </script>
+    {% endif %}
 </body>
 </html>

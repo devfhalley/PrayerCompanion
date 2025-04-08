@@ -13,6 +13,29 @@
         <div id="next-prayer-details">Loading...</div>
     </div>
     
+    <div class="prayer-countdown" id="prayer-countdown">
+        <div class="countdown-header">Time Remaining Until Next Prayer</div>
+        <div class="countdown-timer">
+            <div class="countdown-segment">
+                <div class="countdown-value hours">00</div>
+                <div class="countdown-label">Hours</div>
+            </div>
+            <div class="countdown-separator">:</div>
+            <div class="countdown-segment">
+                <div class="countdown-value minutes">00</div>
+                <div class="countdown-label">Minutes</div>
+            </div>
+            <div class="countdown-separator">:</div>
+            <div class="countdown-segment">
+                <div class="countdown-value seconds">00</div>
+                <div class="countdown-label">Seconds</div>
+            </div>
+        </div>
+        <div class="prayer-progress-bar">
+            <div class="prayer-progress-fill"></div>
+        </div>
+    </div>
+    
     <div class="card-header">
         <h2>Quick Actions</h2>
     </div>
@@ -132,6 +155,33 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial data fetch
     fetchNextPrayer();
     checkSystemStatus();
+    
+    // Initialize prayer countdown widget
+    const prayerTimesState = {
+        currentPrayerTimes: [],
+        dateSelector: null
+    };
+    
+    // Fetch prayer times for countdown widget
+    async function fetchPrayerTimesForCountdown() {
+        try {
+            const response = await fetch('/prayer-times');
+            const prayerTimes = await response.json();
+            prayerTimesState.currentPrayerTimes = prayerTimes;
+            return prayerTimes;
+        } catch (error) {
+            console.error('Error fetching prayer times for countdown:', error);
+            return [];
+        }
+    }
+    
+    // Fetch times first, then initialize the countdown
+    fetchPrayerTimesForCountdown().then(() => {
+        initializePrayerCountdown({
+            containerId: 'prayer-countdown',
+            prayerTimesState: prayerTimesState
+        });
+    });
     
     // Refresh every minute
     setInterval(fetchNextPrayer, 60000);
