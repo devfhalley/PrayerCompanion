@@ -1,0 +1,338 @@
+/* Main styles for Prayer Alarm Web Interface */
+:root {
+    --primary-color: #4CAF50;
+    --secondary-color: #2196F3;
+    --accent-color: #FF9800;
+    --error-color: #F44336;
+    --text-color: #333;
+    --light-bg: #f5f5f5;
+    --card-bg: #fff;
+    --divider-color: #e0e0e0;
+}
+
+body {
+    font-family: 'Roboto', Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    background-color: var(--light-bg);
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 10px 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+nav ul {
+    list-style-type: none;
+    display: flex;
+    margin: 0;
+    padding: 0;
+}
+
+nav ul li {
+    margin-left: 20px;
+}
+
+nav ul li a {
+    color: white;
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    transition: background-color 0.3s;
+}
+
+nav ul li a:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+nav ul li a.active {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+.card {
+    background-color: var(--card-bg);
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.card-header {
+    border-bottom: 1px solid var(--divider-color);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--primary-color);
+}
+
+.btn {
+    display: inline-block;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.btn:hover {
+    background-color: #3d8b40;
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+}
+
+.btn-secondary:hover {
+    background-color: #0b7dda;
+}
+
+.btn-accent {
+    background-color: var(--accent-color);
+}
+
+.btn-accent:hover {
+    background-color: #e68a00;
+}
+
+.btn-danger {
+    background-color: var(--error-color);
+}
+
+.btn-danger:hover {
+    background-color: #d32f2f;
+}
+
+.btn-icon {
+    padding: 8px;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+table th, table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--divider-color);
+}
+
+table th {
+    background-color: var(--light-bg);
+    font-weight: bold;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--divider-color);
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.alert {
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.next-prayer {
+    background-color: #e8f5e9;
+    padding: 15px;
+    border-left: 4px solid var(--primary-color);
+    margin-bottom: 20px;
+}
+
+.prayer-time {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--divider-color);
+}
+
+.prayer-time:last-child {
+    border-bottom: none;
+}
+
+.prayer-name {
+    font-weight: bold;
+}
+
+.current-time {
+    text-align: center;
+    font-size: 20px;
+    margin-bottom: 20px;
+}
+
+.push-to-talk {
+    text-align: center;
+    padding: 30px 0;
+}
+
+.ptt-button {
+    width: 120px;
+    height: 120px;
+    border-radius: 60px;
+    background-color: var(--accent-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.ptt-button:active {
+    transform: scale(0.95);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ptt-icon {
+    font-size: 48px;
+    color: white;
+}
+
+.murattal-list {
+    list-style-type: none;
+    padding: 0;
+}
+
+.murattal-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--divider-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.murattal-item:hover {
+    background-color: var(--light-bg);
+}
+
+.murattal-item .play-icon {
+    color: var(--primary-color);
+    margin-right: 10px;
+}
+
+.upload-area {
+    border: 2px dashed var(--divider-color);
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.upload-area:hover {
+    border-color: var(--primary-color);
+}
+
+.upload-area.drag-over {
+    border-color: var(--primary-color);
+    background-color: rgba(76, 175, 80, 0.05);
+}
+
+.upload-icon {
+    font-size: 48px;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+footer {
+    background-color: var(--text-color);
+    color: white;
+    text-align: center;
+    padding: 20px 0;
+    margin-top: 40px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    header .container {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    nav ul {
+        margin-top: 10px;
+    }
+    
+    nav ul li {
+        margin: 0 10px;
+    }
+    
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .card-header .btn {
+        margin-top: 10px;
+    }
+}

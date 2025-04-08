@@ -1,0 +1,182 @@
+{% extends "layout.html" %}
+
+{% block title %}Add Alarm - Prayer Alarm System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Add New Alarm</h2>
+        <a href="{{ url_for('web_alarms') }}" class="btn btn-secondary">Back to Alarms</a>
+    </div>
+    
+    <form class="api-form" data-api-url="/alarms" data-api-method="POST" data-redirect="/web/alarms">
+        <div class="form-group">
+            <label for="alarm-time">Time</label>
+            <input type="time" id="alarm-time" name="time" class="form-control" required>
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="alarm-repeating" name="repeating"> 
+                Repeating Alarm
+            </label>
+        </div>
+        
+        <div id="repeat-days" style="display: none;">
+            <div class="form-group">
+                <label>Repeat on:</label>
+                <div class="days-selector">
+                    <label><input type="checkbox" name="days[0]"> Sunday</label>
+                    <label><input type="checkbox" name="days[1]"> Monday</label>
+                    <label><input type="checkbox" name="days[2]"> Tuesday</label>
+                    <label><input type="checkbox" name="days[3]"> Wednesday</label>
+                    <label><input type="checkbox" name="days[4]"> Thursday</label>
+                    <label><input type="checkbox" name="days[5]"> Friday</label>
+                    <label><input type="checkbox" name="days[6]"> Saturday</label>
+                </div>
+            </div>
+        </div>
+        
+        <div id="one-time-date" class="form-group">
+            <label for="alarm-date">Date</label>
+            <input type="date" id="alarm-date" name="date" class="form-control" required>
+        </div>
+        
+        <div class="form-group">
+            <label>Alarm Sound</label>
+            <div>
+                <label>
+                    <input type="radio" name="is_tts" value="false" checked> 
+                    Default Sound
+                </label>
+                <label>
+                    <input type="radio" name="is_tts" value="true"> 
+                    Text-to-Speech
+                </label>
+            </div>
+        </div>
+        
+        <div id="tts-message" class="form-group" style="display: none;">
+            <label for="alarm-message">Message</label>
+            <textarea id="alarm-message" name="message" class="form-control" rows="3"></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="alarm-enabled" name="enabled" checked> 
+                Enable Alarm
+            </label>
+        </div>
+        
+        <div class="form-group">
+            <button type="submit" class="btn">Save Alarm</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const alarmRepeating = document.getElementById('alarm-repeating');
+    const repeatDays = document.getElementById('repeat-days');
+    const oneTimeDate = document.getElementById('one-time-date');
+    
+    const isTtsRadios = document.querySelectorAll('input[name="is_tts"]');
+    const ttsMessage = document.getElementById('tts-message');
+    
+    // Set date input to today initially
+    document.getElementById('alarm-date').value = formatDateYMD(new Date());
+    
+    // Toggle repeating options
+    alarmRepeating.addEventListener('change', function() {
+        if (this.checked) {
+            repeatDays.style.display = 'block';
+            oneTimeDate.style.display = 'none';
+        } else {
+            repeatDays.style.display = 'none';
+            oneTimeDate.style.display = 'block';
+        }
+    });
+    
+    // Toggle TTS message field
+    isTtsRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'true') {
+                ttsMessage.style.display = 'block';
+            } else {
+                ttsMessage.style.display = 'none';
+            }
+        });
+    });
+    
+    // Custom submission handling
+    const form = document.querySelector('form.api-form');
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Gather all the data
+        const alarmTime = document.getElementById('alarm-time').value;
+        const [hours, minutes] = alarmTime.split(':').map(Number);
+        
+        const isRepeating = document.getElementById('alarm-repeating').checked;
+        const isEnabled = document.getElementById('alarm-enabled').checked;
+        const isTts = document.querySelector('input[name="is_tts"]:checked').value === 'true';
+        
+        // Construct data object
+        const data = {
+            hour: hours,
+            minute: minutes,
+            enabled: isEnabled,
+            repeating: isRepeating,
+            is_tts: isTts
+        };
+        
+        if (isRepeating) {
+            // Get selected days
+            const days = [];
+            for (let i = 0; i < 7; i++) {
+                days.push(document.querySelector(`input[name="days[${i}]"]`).checked);
+            }
+            data.days = days;
+        } else {
+            // Get date for one-time alarm
+            const alarmDate = document.getElementById('alarm-date').value;
+            data.date = alarmDate;
+        }
+        
+        if (isTts) {
+            // Get TTS message
+            const message = document.getElementById('alarm-message').value;
+            if (!message.trim()) {
+                showNotification('Please enter a message for text-to-speech', 'error');
+                return;
+            }
+            data.message = message;
+        }
+        
+        try {
+            const response = await fetch('/alarms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification('Alarm added successfully');
+                window.location.href = '/web/alarms';
+            } else {
+                showNotification(result.message || 'Failed to add alarm', 'error');
+            }
+        } catch (error) {
+            console.error('Error adding alarm:', error);
+            showNotification('Failed to add alarm', 'error');
+        }
+    });
+});
+</script>
+{% endblock %}

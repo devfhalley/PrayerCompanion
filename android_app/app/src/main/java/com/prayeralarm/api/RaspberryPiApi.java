@@ -18,7 +18,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Calendar;
 import java.util.Locale;
 
@@ -176,5 +175,110 @@ public class RaspberryPiApi {
         }
         
         return path;
+    }
+    
+    public JSONArray getMurattalFiles() {
+        try {
+            URL url = new URL(getBaseUrl() + "/murattal/files");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                String inputLine;
+                StringBuilder response = new StringBuilder();
+                
+                while ((inputLine = in.readLine()) != null) {
+                    response.append(inputLine);
+                }
+                in.close();
+                
+                JSONObject jsonResponse = new JSONObject(response.toString());
+                if (jsonResponse.getString("status").equals("success")) {
+                    return jsonResponse.getJSONArray("files");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting murattal files: " + e.getMessage());
+        }
+        
+        return new JSONArray();
+    }
+    
+    public boolean playMurattal(String filePath) {
+        try {
+            URL url = new URL(getBaseUrl() + "/murattal/play");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+            
+            JSONObject json = new JSONObject();
+            json.put("file_path", filePath);
+            
+            OutputStream os = connection.getOutputStream();
+            os.write(json.toString().getBytes());
+            os.flush();
+            os.close();
+            
+            int responseCode = connection.getResponseCode();
+            return responseCode == HttpURLConnection.HTTP_OK;
+        } catch (Exception e) {
+            Log.e(TAG, "Error playing murattal: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    public boolean uploadMurattal(String filePath) {
+        try {
+            URL url = new URL(getBaseUrl() + "/murattal/upload");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+            
+            File file = new File(filePath);
+            if (!file.exists()) {
+                Log.e(TAG, "Murattal file does not exist: " + filePath);
+                return false;
+            }
+            
+            byte[] fileBytes = new byte[(int) file.length()];
+            FileInputStream fis = new FileInputStream(file);
+            fis.read(fileBytes);
+            fis.close();
+            
+            String fileContent = android.util.Base64.encodeToString(fileBytes, android.util.Base64.DEFAULT);
+            
+            JSONObject json = new JSONObject();
+            json.put("file_name", getFileName(filePath));
+            json.put("file_content", fileContent);
+            
+            OutputStream os = connection.getOutputStream();
+            os.write(json.toString().getBytes());
+            os.flush();
+            os.close();
+            
+            int responseCode = connection.getResponseCode();
+            return responseCode == HttpURLConnection.HTTP_OK;
+        } catch (Exception e) {
+            Log.e(TAG, "Error uploading murattal: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    public boolean stopAudio() {
+        try {
+            URL url = new URL(getBaseUrl() + "/stop-audio");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            
+            int responseCode = connection.getResponseCode();
+            return responseCode == HttpURLConnection.HTTP_OK;
+        } catch (Exception e) {
+            Log.e(TAG, "Error stopping audio: " + e.getMessage());
+            return false;
+        }
     }
 }

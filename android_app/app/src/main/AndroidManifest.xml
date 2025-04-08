@@ -39,6 +39,7 @@
             
         <activity
             android:name=".PushToTalkActivity"
+        <activity android:name=".MurattalPlayerActivity" android:exported="false"/>
             android:exported="false" />
             
         <activity

@@ -27,6 +27,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView nextPrayerText;
     private Button alarmsButton;
     private Button prayerTimesButton;
+    private Button murattalPlayerButton;
     private Button pushToTalkButton;
     private Button settingsButton;
     
@@ -45,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
         nextPrayerText = findViewById(R.id.nextPrayerText);
         alarmsButton = findViewById(R.id.alarmsButton);
         prayerTimesButton = findViewById(R.id.prayerTimesButton);
+        murattalPlayerButton = findViewById(R.id.murattalPlayerButton);
         pushToTalkButton = findViewById(R.id.pushToTalkButton);
         settingsButton = findViewById(R.id.settingsButton);
         
@@ -130,6 +132,11 @@ public class MainActivity extends AppCompatActivity {
 
         prayerTimesButton.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, PrayerTimesActivity.class);
+            startActivity(intent);
+        });
+        
+        murattalPlayerButton.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, MurattalPlayerActivity.class);
             startActivity(intent);
         });
 

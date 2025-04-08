@@ -1,0 +1,182 @@
+{% extends "layout.html" %}
+
+{% block title %}Push to Talk - Prayer Alarm System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Push to Talk</h2>
+    </div>
+    
+    <div class="push-to-talk">
+        <div id="status-message">Initializing WebSocket...</div>
+        
+        <div class="ptt-button" id="ptt-button">
+            <i class="fas fa-microphone ptt-icon"></i>
+        </div>
+        
+        <p class="mt-4">Press and hold the button to talk</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pttButton = document.getElementById('ptt-button');
+    const statusMessage = document.getElementById('status-message');
+    let ws = null;
+    let isRecording = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    
+    // Initialize WebSocket connection
+    function initWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        
+        statusMessage.textContent = 'Connecting...';
+        
+        ws = new WebSocket(wsUrl);
+        
+        ws.onopen = function() {
+            statusMessage.textContent = 'Connected - Ready to talk';
+            pttButton.classList.add('ready');
+        };
+        
+        ws.onclose = function() {
+            statusMessage.textContent = 'Disconnected';
+            pttButton.classList.remove('ready');
+            setTimeout(initWebSocket, 3000); // Try to reconnect after 3 seconds
+        };
+        
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            statusMessage.textContent = 'Connection error';
+        };
+    }
+    
+    // Request access to the microphone
+    async function initAudio() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            mediaRecorder = new MediaRecorder(stream);
+            
+            mediaRecorder.ondataavailable = function(event) {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+            
+            mediaRecorder.onstop = function() {
+                if (audioChunks.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+                    // Combine chunks and convert to base64
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    
+                    reader.onloadend = function() {
+                        const base64data = reader.result.split(',')[1];
+                        
+                        // Send the audio data
+                        const message = {
+                            type: 'ptt_audio',
+                            data: base64data
+                        };
+                        
+                        ws.send(JSON.stringify(message));
+                    };
+                    
+                    reader.readAsDataURL(audioBlob);
+                    audioChunks = [];
+                }
+            };
+            
+            statusMessage.textContent = 'Microphone access granted';
+            return true;
+        } catch (error) {
+            console.error('Error accessing microphone:', error);
+            statusMessage.textContent = 'Failed to access microphone';
+            return false;
+        }
+    }
+    
+    // Handle button press/release
+    function setupPushToTalk() {
+        pttButton.addEventListener('mousedown', startTalking);
+        pttButton.addEventListener('touchstart', function(e) {
+            e.preventDefault(); // Prevent touch scrolling
+            startTalking();
+        });
+        
+        pttButton.addEventListener('mouseup', stopTalking);
+        pttButton.addEventListener('mouseleave', stopTalking);
+        pttButton.addEventListener('touchend', stopTalking);
+        pttButton.addEventListener('touchcancel', stopTalking);
+    }
+    
+    function startTalking() {
+        if (!ws || ws.readyState !== WebSocket.OPEN || !mediaRecorder) {
+            statusMessage.textContent = 'Cannot start talking - connection or microphone issue';
+            return;
+        }
+        
+        if (isRecording) return;
+        
+        isRecording = true;
+        pttButton.classList.add('active');
+        statusMessage.textContent = 'Talking...';
+        
+        // Send start message
+        const message = {
+            type: 'ptt_start'
+        };
+        ws.send(JSON.stringify(message));
+        
+        // Start recording
+        audioChunks = [];
+        mediaRecorder.start(100); // Collect data every 100ms
+    }
+    
+    function stopTalking() {
+        if (!isRecording) return;
+        
+        isRecording = false;
+        pttButton.classList.remove('active');
+        statusMessage.textContent = 'Connected - Ready to talk';
+        
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        
+        // Send stop message
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            const message = {
+                type: 'ptt_stop'
+            };
+            ws.send(JSON.stringify(message));
+        }
+    }
+    
+    // Initialize everything
+    async function initialize() {
+        const hasAudio = await initAudio();
+        if (hasAudio) {
+            initWebSocket();
+            setupPushToTalk();
+        }
+    }
+    
+    initialize();
+    
+    // Add some styling
+    const style = document.createElement('style');
+    style.textContent = `
+        #ptt-button.ready { background-color: var(--primary-color); }
+        #ptt-button.active { transform: scale(0.95); background-color: var(--error-color); }
+        #status-message { margin-bottom: 20px; }
+    `;
+    document.head.appendChild(style);
+});
+</script>
+{% endblock %}

@@ -174,12 +174,13 @@ class PrayerScheduler:
             if 0 <= time_diff <= 60:  # Within 60 seconds
                 logger.info(f"It's time for {next_prayer.name} prayer")
                 
-                # Play the adhan
+                # Play the adhan with highest priority
                 if next_prayer.custom_sound:
-                    self.audio_player.play_file(next_prayer.custom_sound)
+                    self.audio_player.play_adhan(next_prayer.custom_sound)
                 else:
                     # Use default adhan sound
-                    self.audio_player.play_file(Config.DEFAULT_ADHAN_SOUND)
+                    self.audio_player.play_adhan(Config.DEFAULT_ADHAN_SOUND)
                     
                     # After adhan, announce the prayer using TTS
-                    self.audio_player.queue_tts(f"It's time for {next_prayer.name} prayer")
+                    # This will be queued with the same adhan priority
+                    self.audio_player.play_tts(f"It's time for {next_prayer.name} prayer", priority=self.audio_player.PRIORITY_ADHAN)

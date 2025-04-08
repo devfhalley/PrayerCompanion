@@ -7,7 +7,7 @@ This module initializes all components and starts the Flask server.
 import os
 import logging
 import time
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, redirect, url_for
 import threading
 
 from database import init_db, get_db
@@ -103,12 +103,20 @@ def home():
                 <li><span class="api-path">/prayer-times</span> - Get prayer times</li>
                 <li><span class="api-path">/prayer-times/refresh</span> - Force refresh of prayer times</li>
                 <li><span class="api-path">/stop-audio</span> - Stop any playing audio</li>
+                <li><span class="api-path">/murattal/files</span> - Get available Murattal files</li>
+                <li><span class="api-path">/murattal/play</span> - Play a Murattal file</li>
+                <li><span class="api-path">/murattal/upload</span> - Upload a new Murattal file</li>
             </ul>
         </div>
         
         <div class="section">
             <h2>WebSocket</h2>
             <p>WebSocket endpoint for push-to-talk: <span class="api-path">/ws</span></p>
+        </div>
+        
+        <div class="section">
+            <h2>Web Interface</h2>
+            <p>A web-based control interface is available at: <a href="/web" style="color: #4CAF50; text-decoration: none;"><span class="api-path">/web</span></a></p>
         </div>
     </body>
     </html>
@@ -214,6 +222,72 @@ def stop_audio():
     """Stop any playing audio."""
     audio_player.stop()
     return jsonify({"status": "success", "message": "Audio stopped"})
+
+@app.route('/murattal/files', methods=['GET'])
+def get_murattal_files():
+    """Get a list of available Murattal files."""
+    files = audio_player.get_murattal_files()
+    return jsonify({"status": "success", "files": files})
+
+@app.route('/murattal/play', methods=['POST'])
+def play_murattal():
+    """Play a Murattal file."""
+    data = request.json
+    file_path = data.get('file_path')
+    
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({"status": "error", "message": "File not found"}), 404
+    
+    audio_player.play_murattal(file_path)
+    return jsonify({"status": "success", "message": "Murattal playing"})
+
+@app.route('/murattal/upload', methods=['POST'])
+def upload_murattal():
+    """Upload a new Murattal file."""
+    data = request.json
+    file_name = data.get('file_name')
+    file_content = data.get('file_content')  # Base64 encoded
+    
+    if not file_name or not file_content:
+        return jsonify({"status": "error", "message": "Missing file_name or file_content"}), 400
+    
+    try:
+        import base64
+        file_path = audio_player.add_murattal_file(file_name, base64.b64decode(file_content))
+        return jsonify({"status": "success", "message": "Murattal file uploaded", "file_path": file_path})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Web interface routes
+@app.route('/web', methods=['GET'])
+def web_home():
+    """Web interface home page."""
+    return render_template('index.html')
+
+@app.route('/web/prayer-times', methods=['GET'])
+def web_prayer_times():
+    """Web interface prayer times page."""
+    return render_template('prayer_times.html')
+
+@app.route('/web/alarms', methods=['GET'])
+def web_alarms():
+    """Web interface alarms page."""
+    return render_template('alarms.html')
+
+@app.route('/web/alarms/add', methods=['GET'])
+def web_add_alarm():
+    """Web interface add alarm page."""
+    return render_template('add_alarm.html')
+
+@app.route('/web/push-to-talk', methods=['GET'])
+def web_push_to_talk():
+    """Web interface push-to-talk page."""
+    return render_template('push_to_talk.html')
+
+@app.route('/web/murattal', methods=['GET'])
+def web_murattal():
+    """Web interface Murattal player page."""
+    return render_template('murattal.html')
 
 def start_schedulers():
     """Start the prayer and alarm schedulers."""

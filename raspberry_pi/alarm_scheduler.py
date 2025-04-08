@@ -162,18 +162,19 @@ class AlarmScheduler:
         logger.info(f"Triggering alarm {alarm.id}")
         
         if alarm.is_tts:
-            # Play TTS message
-            self.audio_player.play_tts(alarm.message)
+            # Play TTS message with alarm priority
+            self.audio_player.play_alarm(tts_text=alarm.message)
         else:
-            # Play sound file
+            # Play sound file with alarm priority
             if alarm.sound_path and os.path.exists(alarm.sound_path):
-                self.audio_player.play_file(alarm.sound_path)
+                self.audio_player.play_alarm(file_path=alarm.sound_path)
             else:
                 # Use default alarm sound
-                self.audio_player.play_file(Config.DEFAULT_ALARM_SOUND)
+                self.audio_player.play_alarm(file_path=Config.DEFAULT_ALARM_SOUND)
                 
                 # Also announce using TTS that the default sound is being used
-                self.audio_player.queue_tts("This is a default alarm sound because the custom sound file was not found.")
+                self.audio_player.play_tts("This is a default alarm sound because the custom sound file was not found.", 
+                                         priority=self.audio_player.PRIORITY_ALARM)
     
     def schedule_alarm(self, alarm):
         """Schedule an alarm.

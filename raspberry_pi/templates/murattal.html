@@ -1,0 +1,232 @@
+{% extends "layout.html" %}
+
+{% block title %}Murattal Player - Prayer Alarm System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Murattal Player</h2>
+    </div>
+    
+    <div id="murattal-container">
+        <div class="upload-area" id="upload-area">
+            <i class="fas fa-upload upload-icon"></i>
+            <h3>Upload Murattal File</h3>
+            <p>Click to select or drag & drop MP3 file</p>
+            <input type="file" id="file-input" style="display: none;" accept="audio/mpeg">
+        </div>
+        
+        <div class="card-header">
+            <h2>Available Murattal Files</h2>
+            <button id="stop-button" class="btn btn-danger">Stop Playback</button>
+        </div>
+        
+        <ul class="murattal-list" id="murattal-list">
+            <li>Loading Murattal files...</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const murattalList = document.getElementById('murattal-list');
+    const stopButton = document.getElementById('stop-button');
+    
+    // Fetch Murattal files
+    async function fetchMurattalFiles() {
+        try {
+            const response = await fetch('/murattal/files');
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                const files = result.files;
+                
+                if (files.length > 0) {
+                    let html = '';
+                    files.forEach(file => {
+                        html += `
+                            <li class="murattal-item" data-path="${file.path}">
+                                <div>
+                                    <i class="fas fa-play play-icon"></i>
+                                    ${file.name}
+                                </div>
+                                <button class="btn btn-danger delete-btn" data-path="${file.path}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </li>
+                        `;
+                    });
+                    murattalList.innerHTML = html;
+                    
+                    // Add click event to play files
+                    document.querySelectorAll('.murattal-item').forEach(item => {
+                        item.addEventListener('click', function(e) {
+                            if (e.target.closest('.delete-btn')) return; // Don't play if delete button was clicked
+                            
+                            const path = this.getAttribute('data-path');
+                            playMurattal(path);
+                        });
+                    });
+                    
+                    // Add click event to delete buttons
+                    document.querySelectorAll('.delete-btn').forEach(button => {
+                        button.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const path = this.getAttribute('data-path');
+                            if (confirm('Are you sure you want to delete this file?')) {
+                                // Note: We'd need to add a delete endpoint in the API
+                                showNotification('Delete functionality not yet implemented', 'error');
+                            }
+                        });
+                    });
+                } else {
+                    murattalList.innerHTML = '<li>No Murattal files available</li>';
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching Murattal files:', error);
+            murattalList.innerHTML = '<li>Error loading Murattal files</li>';
+        }
+    }
+    
+    // Play a Murattal file
+    async function playMurattal(filePath) {
+        try {
+            const response = await fetch('/murattal/play', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ file_path: filePath })
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification('Murattal playing');
+            } else {
+                showNotification(result.message || 'Failed to play Murattal', 'error');
+            }
+        } catch (error) {
+            console.error('Error playing Murattal:', error);
+            showNotification('Failed to play Murattal', 'error');
+        }
+    }
+    
+    // Stop audio playback
+    stopButton.addEventListener('click', async function() {
+        try {
+            const response = await fetch('/stop-audio', { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification('Audio stopped');
+            }
+        } catch (error) {
+            console.error('Error stopping audio:', error);
+        }
+    });
+    
+    // File upload handling
+    uploadArea.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            uploadFile(this.files[0]);
+        }
+    });
+    
+    // Drag and drop functionality
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('drag-over');
+    });
+    
+    uploadArea.addEventListener('dragleave', function() {
+        this.classList.remove('drag-over');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('drag-over');
+        
+        if (e.dataTransfer.files.length > 0) {
+            uploadFile(e.dataTransfer.files[0]);
+        }
+    });
+    
+    // Upload a file
+    async function uploadFile(file) {
+        // Check if it's an MP3
+        if (!file.type.includes('audio/mpeg')) {
+            showNotification('Please select an MP3 file', 'error');
+            return;
+        }
+        
+        // Create a loader indicator
+        const loader = document.createElement('div');
+        loader.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+        loader.style.textAlign = 'center';
+        loader.style.padding = '10px';
+        uploadArea.appendChild(loader);
+        
+        try {
+            // Read the file as base64
+            const reader = new FileReader();
+            
+            reader.onload = async function(e) {
+                const base64data = e.target.result.split(',')[1]; // Remove data:audio/mpeg;base64,
+                
+                try {
+                    const response = await fetch('/murattal/upload', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            file_name: file.name,
+                            file_content: base64data
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        showNotification('Murattal file uploaded successfully');
+                        fetchMurattalFiles(); // Refresh the list
+                    } else {
+                        showNotification(result.message || 'Failed to upload file', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error uploading file:', error);
+                    showNotification('Failed to upload file', 'error');
+                } finally {
+                    // Remove the loader
+                    loader.remove();
+                }
+            };
+            
+            reader.onerror = function() {
+                showNotification('Failed to read file', 'error');
+                loader.remove();
+            };
+            
+            reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('File upload error:', error);
+            showNotification('Failed to upload file', 'error');
+            loader.remove();
+        }
+    }
+    
+    // Initial fetch
+    fetchMurattalFiles();
+});
+</script>
+{% endblock %}

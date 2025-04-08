@@ -1,0 +1,140 @@
+{% extends "layout.html" %}
+
+{% block title %}Home - Prayer Alarm System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="current-time" id="current-time">
+        Loading current time...
+    </div>
+    
+    <div class="next-prayer" id="next-prayer">
+        <h3>Next Prayer</h3>
+        <div id="next-prayer-details">Loading...</div>
+    </div>
+    
+    <div class="card-header">
+        <h2>Quick Actions</h2>
+    </div>
+    
+    <div class="quick-actions">
+        <a href="{{ url_for('web_prayer_times') }}" class="btn">View Prayer Times</a>
+        <a href="{{ url_for('web_alarms') }}" class="btn btn-secondary">Manage Alarms</a>
+        <a href="{{ url_for('web_push_to_talk') }}" class="btn btn-accent">Push to Talk</a>
+        <a href="{{ url_for('web_murattal') }}" class="btn">Murattal Player</a>
+        <button id="stop-audio" class="btn btn-danger">Stop Audio</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>System Status</h2>
+    </div>
+    
+    <div id="system-status">
+        <p><strong>Prayer Scheduler:</strong> <span id="prayer-scheduler-status">Checking...</span></p>
+        <p><strong>Alarm Scheduler:</strong> <span id="alarm-scheduler-status">Checking...</span></p>
+        <p><strong>Audio Player:</strong> <span id="audio-player-status">Checking...</span></p>
+        
+        <button id="refresh-prayer-times" class="btn btn-secondary">Refresh Prayer Times</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fetch next prayer time
+    async function fetchNextPrayer() {
+        try {
+            const response = await fetch('/prayer-times');
+            const prayerTimes = await response.json();
+            
+            if (prayerTimes && prayerTimes.length > 0) {
+                const now = new Date();
+                let nextPrayer = null;
+                
+                // Find the next prayer
+                for (let i = 0; i < prayerTimes.length; i++) {
+                    const prayerTime = new Date(prayerTimes[i].time);
+                    if (prayerTime > now) {
+                        nextPrayer = prayerTimes[i];
+                        break;
+                    }
+                }
+                
+                // Update the display
+                const nextPrayerDetails = document.getElementById('next-prayer-details');
+                if (nextPrayer) {
+                    const prayerTime = new Date(nextPrayer.time);
+                    const timeString = prayerTime.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                    });
+                    
+                    nextPrayerDetails.innerHTML = `
+                        <p><strong>${nextPrayer.name}</strong> at ${timeString}</p>
+                    `;
+                } else {
+                    nextPrayerDetails.textContent = 'All prayers for today have passed';
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching prayer times:', error);
+        }
+    }
+    
+    // Check system status
+    async function checkSystemStatus() {
+        try {
+            const response = await fetch('/status');
+            const status = await response.json();
+            
+            if (status.status === 'ok') {
+                document.getElementById('prayer-scheduler-status').textContent = 'Running';
+                document.getElementById('alarm-scheduler-status').textContent = 'Running';
+                document.getElementById('audio-player-status').textContent = 'Ready';
+            }
+        } catch (error) {
+            console.error('Error checking system status:', error);
+        }
+    }
+    
+    // Stop audio button
+    document.getElementById('stop-audio').addEventListener('click', async function() {
+        try {
+            const response = await fetch('/stop-audio', { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification('Audio stopped');
+            }
+        } catch (error) {
+            console.error('Error stopping audio:', error);
+        }
+    });
+    
+    // Refresh prayer times button
+    document.getElementById('refresh-prayer-times').addEventListener('click', async function() {
+        try {
+            const response = await fetch('/prayer-times/refresh', { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification('Prayer times refreshed');
+                fetchNextPrayer();
+            }
+        } catch (error) {
+            console.error('Error refreshing prayer times:', error);
+        }
+    });
+    
+    // Initial data fetch
+    fetchNextPrayer();
+    checkSystemStatus();
+    
+    // Refresh every minute
+    setInterval(fetchNextPrayer, 60000);
+});
+</script>
+{% endblock %}

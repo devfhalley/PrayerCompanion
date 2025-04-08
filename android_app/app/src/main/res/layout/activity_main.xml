@@ -64,6 +64,15 @@
             android:layout_marginBottom="16dp" />
 
         <Button
+            android:id="@+id/murattalPlayerButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Murattal Player"
+            android:textSize="16sp"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <Button
             android:id="@+id/pushToTalkButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

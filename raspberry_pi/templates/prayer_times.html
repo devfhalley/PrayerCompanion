@@ -1,0 +1,141 @@
+{% extends "layout.html" %}
+
+{% block title %}Prayer Times - Prayer Alarm System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Prayer Times</h2>
+        <div>
+            <button id="refresh-prayer-times" class="btn btn-secondary">Refresh Prayer Times</button>
+            <input type="date" id="date-selector" class="form-control" style="display: inline-block; width: auto;">
+        </div>
+    </div>
+    
+    <div id="prayer-times-container">
+        <div class="current-time" id="current-time">
+            Loading current time...
+        </div>
+        
+        <div class="next-prayer" id="next-prayer">
+            <h3>Next Prayer</h3>
+            <div id="next-prayer-details">Loading...</div>
+        </div>
+        
+        <div id="prayer-times-list">
+            Loading prayer times...
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dateSelector = document.getElementById('date-selector');
+    
+    // Set date selector to today initially
+    const today = new Date();
+    dateSelector.value = formatDateYMD(today);
+    
+    // Fetch prayer times for the selected date
+    async function fetchPrayerTimes(date) {
+        try {
+            const formattedDate = formatDateYMD(date);
+            const response = await fetch(`/prayer-times?date=${formattedDate}`);
+            const prayerTimes = await response.json();
+            
+            const now = new Date();
+            let nextPrayer = null;
+            
+            // Find the next prayer
+            for (let i = 0; i < prayerTimes.length; i++) {
+                const prayerTime = new Date(prayerTimes[i].time);
+                if (prayerTime > now) {
+                    nextPrayer = prayerTimes[i];
+                    break;
+                }
+            }
+            
+            // Update next prayer display
+            const nextPrayerDetails = document.getElementById('next-prayer-details');
+            if (nextPrayer) {
+                const prayerTime = new Date(nextPrayer.time);
+                const timeString = prayerTime.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit'
+                });
+                
+                nextPrayerDetails.innerHTML = `
+                    <p><strong>${nextPrayer.name}</strong> at ${timeString}</p>
+                `;
+            } else {
+                nextPrayerDetails.textContent = 'All prayers for today have passed';
+            }
+            
+            // Display all prayer times
+            const prayerTimesList = document.getElementById('prayer-times-list');
+            if (prayerTimes.length > 0) {
+                let html = '';
+                
+                prayerTimes.forEach(prayer => {
+                    const prayerTime = new Date(prayer.time);
+                    const timeString = prayerTime.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                    });
+                    
+                    const isPassed = prayerTime < now;
+                    const isCurrent = nextPrayer && prayer.name === nextPrayer.name;
+                    
+                    html += `
+                        <div class="prayer-time ${isPassed ? 'passed' : ''} ${isCurrent ? 'current' : ''}">
+                            <div class="prayer-name">${prayer.name}</div>
+                            <div class="prayer-time-text">${timeString}</div>
+                        </div>
+                    `;
+                });
+                
+                prayerTimesList.innerHTML = html;
+            } else {
+                prayerTimesList.innerHTML = '<p>No prayer times available for this date</p>';
+            }
+        } catch (error) {
+            console.error('Error fetching prayer times:', error);
+            document.getElementById('prayer-times-list').innerHTML = '<p>Error loading prayer times</p>';
+        }
+    }
+    
+    // Date change event
+    dateSelector.addEventListener('change', function() {
+        fetchPrayerTimes(this.value);
+    });
+    
+    // Refresh prayer times button
+    document.getElementById('refresh-prayer-times').addEventListener('click', async function() {
+        try {
+            const response = await fetch('/prayer-times/refresh', { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification('Prayer times refreshed');
+                fetchPrayerTimes(dateSelector.value);
+            }
+        } catch (error) {
+            console.error('Error refreshing prayer times:', error);
+        }
+    });
+    
+    // Initial fetch
+    fetchPrayerTimes(today);
+    
+    // Add some styling
+    const style = document.createElement('style');
+    style.textContent = `
+        .prayer-time.passed { opacity: 0.5; }
+        .prayer-time.current { background-color: #e8f5e9; font-weight: bold; }
+    `;
+    document.head.appendChild(style);
+});
+</script>
+{% endblock %}

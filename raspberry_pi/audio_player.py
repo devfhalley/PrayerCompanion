@@ -19,13 +19,24 @@ logger = logging.getLogger(__name__)
 class AudioPlayer:
     """Handles audio playback, including MP3 files and text-to-speech."""
     
+    # Priority levels for audio playback
+    PRIORITY_ADHAN = 1  # Highest priority
+    PRIORITY_ALARM = 2
+    PRIORITY_MURATTAL = 3  # Lowest priority
+    
     def __init__(self):
         """Initialize the audio player."""
         self.playing = False
         self.current_audio = None
-        self.audio_queue = queue.Queue()
+        self.current_priority = None
+        self.audio_queue = queue.PriorityQueue()
         self.lock = threading.Lock()
         self.player_thread = None
+        self.murattal_directory = os.path.join(os.path.dirname(__file__), "murattal")
+        
+        # Create murattal directory if it doesn't exist
+        if not os.path.exists(self.murattal_directory):
+            os.makedirs(self.murattal_directory)
         
         # Initialize pygame mixer
         pygame.mixer.init()
@@ -44,11 +55,23 @@ class AudioPlayer:
         while True:
             try:
                 # Get the next audio item
-                audio_type, audio_data = self.audio_queue.get()
+                priority, _, (audio_type, audio_data) = self.audio_queue.get()
                 
                 with self.lock:
+                    # Check if we should override current playback
+                    if self.playing and priority < self.current_priority:
+                        # Higher priority audio (lower number) should interrupt
+                        logger.info(f"Interrupting priority {self.current_priority} playback for priority {priority}")
+                        pygame.mixer.music.stop()
+                    elif self.playing:
+                        # Skip this audio if current playback has higher priority
+                        logger.info(f"Skipping priority {priority} audio because priority {self.current_priority} is playing")
+                        self.audio_queue.task_done()
+                        continue
+                    
                     self.playing = True
                     self.current_audio = audio_data
+                    self.current_priority = priority
                 
                 if audio_type == 'file':
                     self._play_file_internal(audio_data)
@@ -60,6 +83,7 @@ class AudioPlayer:
                 with self.lock:
                     self.playing = False
                     self.current_audio = None
+                    self.current_priority = None
                 
                 # Mark task as done
                 self.audio_queue.task_done()
@@ -69,6 +93,7 @@ class AudioPlayer:
                 with self.lock:
                     self.playing = False
                     self.current_audio = None
+                    self.current_priority = None
             
             # Small delay to prevent CPU hogging
             time.sleep(0.1)
@@ -143,37 +168,87 @@ class AudioPlayer:
         except Exception as e:
             logger.error(f"Error playing audio bytes: {str(e)}")
     
-    def play_file(self, file_path):
-        """Play an audio file.
+    def play_adhan(self, file_path):
+        """Play adhan audio with highest priority.
+        
+        Args:
+            file_path: Path to the adhan audio file
+        """
+        self.audio_queue.put((self.PRIORITY_ADHAN, time.time(), ('file', file_path)))
+    
+    def play_alarm(self, file_path=None, tts_text=None):
+        """Play alarm audio with high priority.
+        
+        Args:
+            file_path: Path to the alarm audio file
+            tts_text: Text to convert to speech for alarm
+        """
+        if file_path:
+            self.audio_queue.put((self.PRIORITY_ALARM, time.time(), ('file', file_path)))
+        elif tts_text:
+            self.audio_queue.put((self.PRIORITY_ALARM, time.time(), ('tts', tts_text)))
+    
+    def play_murattal(self, file_path):
+        """Play Murattal audio with lowest priority.
+        
+        Args:
+            file_path: Path to the Murattal audio file
+        """
+        self.audio_queue.put((self.PRIORITY_MURATTAL, time.time(), ('file', file_path)))
+    
+    def play_file(self, file_path, priority=None):
+        """Play an audio file with specified priority.
         
         Args:
             file_path: Path to the audio file
+            priority: Priority level (default: PRIORITY_MURATTAL)
         """
-        self.audio_queue.put(('file', file_path))
+        if priority is None:
+            priority = self.PRIORITY_MURATTAL
+        self.audio_queue.put((priority, time.time(), ('file', file_path)))
     
-    def play_tts(self, text):
-        """Play text-to-speech immediately.
+    def play_tts(self, text, priority=None):
+        """Play text-to-speech with specified priority.
         
         Args:
             text: Text to convert to speech
+            priority: Priority level (default: PRIORITY_ALARM)
         """
-        self.audio_queue.put(('tts', text))
+        if priority is None:
+            priority = self.PRIORITY_ALARM
+        self.audio_queue.put((priority, time.time(), ('tts', text)))
     
-    def queue_tts(self, text):
-        """Queue text-to-speech to play after current audio.
-        
-        Args:
-            text: Text to convert to speech
-        """
-        self.audio_queue.put(('tts', text))
-    
-    def play_bytes(self, audio_bytes):
-        """Play audio from bytes.
+    def play_bytes(self, audio_bytes, priority=None):
+        """Play audio from bytes with specified priority.
         
         Args:
             audio_bytes: Audio data as bytes
+            priority: Priority level (default: PRIORITY_MURATTAL)
         """
-        self.audio_queue.put(('bytes', audio_bytes))
+        if priority is None:
+            priority = self.PRIORITY_MURATTAL
+        self.audio_queue.put((priority, time.time(), ('bytes', audio_bytes)))
+    
+    def get_murattal_files(self):
+        """Get a list of all available Murattal files.
+        
+        Returns:
+            List of file info dictionaries with 'name' and 'path' keys
+        """
+        murattal_files = []
+        
+        if os.path.exists(self.murattal_directory):
+            for filename in os.listdir(self.murattal_directory):
+                if filename.endswith('.mp3'):
+                    file_path = os.path.join(self.murattal_directory, filename)
+                    # Remove .mp3 extension for display name
+                    display_name = os.path.splitext(filename)[0]
+                    murattal_files.append({
+                        'name': display_name,
+                        'path': file_path
+                    })
+        
+        return murattal_files
     
     def stop(self):
         """Stop all audio playback."""
@@ -183,6 +258,7 @@ class AudioPlayer:
                 pygame.mixer.music.stop()
                 self.playing = False
                 self.current_audio = None
+                self.current_priority = None
                 
                 # Clear the queue
                 while not self.audio_queue.empty():
@@ -196,3 +272,30 @@ class AudioPlayer:
         """Check if audio is currently playing."""
         with self.lock:
             return self.playing
+    
+    def get_current_priority(self):
+        """Get the priority level of currently playing audio."""
+        with self.lock:
+            return self.current_priority if self.playing else None
+    
+    def add_murattal_file(self, file_name, file_data):
+        """Add a new Murattal file to the collection.
+        
+        Args:
+            file_name: Name of the file (with .mp3 extension)
+            file_data: Binary content of the MP3 file
+            
+        Returns:
+            Path to the saved file
+        """
+        # Ensure it has .mp3 extension
+        if not file_name.endswith('.mp3'):
+            file_name += '.mp3'
+            
+        file_path = os.path.join(self.murattal_directory, file_name)
+        
+        # Save the file
+        with open(file_path, 'wb') as f:
+            f.write(file_data)
+            
+        return file_path

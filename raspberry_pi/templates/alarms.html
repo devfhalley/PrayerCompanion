@@ -1,0 +1,152 @@
+{% extends "layout.html" %}
+
+{% block title %}Alarms - Prayer Alarm System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Alarms</h2>
+        <a href="{{ url_for('web_add_alarm') }}" class="btn">Add New Alarm</a>
+    </div>
+    
+    <div id="alarms-container">
+        <div id="alarms-list">
+            Loading alarms...
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fetch all alarms
+    async function fetchAlarms() {
+        try {
+            const response = await fetch('/alarms');
+            const alarms = await response.json();
+            
+            const alarmsList = document.getElementById('alarms-list');
+            
+            if (alarms.length > 0) {
+                let html = '<table>';
+                html += `
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Status</th>
+                            <th>Repeat</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                `;
+                
+                alarms.forEach(alarm => {
+                    const time = new Date(alarm.time_in_millis);
+                    const timeString = time.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                    });
+                    
+                    let repeatText = 'One Time';
+                    if (alarm.repeating) {
+                        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        const repeatDays = [];
+                        alarm.days.forEach((enabled, index) => {
+                            if (enabled) {
+                                repeatDays.push(days[index]);
+                            }
+                        });
+                        repeatText = repeatDays.join(', ');
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td>${timeString}</td>
+                            <td>${alarm.enabled ? 'Enabled' : 'Disabled'}</td>
+                            <td>${repeatText}</td>
+                            <td>
+                                <button class="btn btn-icon btn-danger delete-alarm" data-id="${alarm.id}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                <button class="btn btn-icon ${alarm.enabled ? 'btn-secondary' : 'btn'} toggle-alarm" data-id="${alarm.id}" data-enabled="${alarm.enabled}">
+                                    <i class="fas ${alarm.enabled ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                alarmsList.innerHTML = html;
+                
+                // Add event listeners to the buttons
+                document.querySelectorAll('.delete-alarm').forEach(button => {
+                    button.addEventListener('click', async function() {
+                        const id = this.getAttribute('data-id');
+                        if (confirm('Are you sure you want to delete this alarm?')) {
+                            await deleteAlarm(id);
+                        }
+                    });
+                });
+                
+                document.querySelectorAll('.toggle-alarm').forEach(button => {
+                    button.addEventListener('click', async function() {
+                        const id = this.getAttribute('data-id');
+                        const enabled = this.getAttribute('data-enabled') === 'true';
+                        await toggleAlarm(id, enabled);
+                    });
+                });
+            } else {
+                alarmsList.innerHTML = '<p>No alarms set</p>';
+            }
+        } catch (error) {
+            console.error('Error fetching alarms:', error);
+            document.getElementById('alarms-list').innerHTML = '<p>Error loading alarms</p>';
+        }
+    }
+    
+    // Delete an alarm
+    async function deleteAlarm(id) {
+        try {
+            const response = await fetch(`/alarms/${id}`, { method: 'DELETE' });
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification('Alarm deleted');
+                fetchAlarms();
+            }
+        } catch (error) {
+            console.error('Error deleting alarm:', error);
+        }
+    }
+    
+    // Toggle alarm enabled/disabled
+    async function toggleAlarm(id, currentlyEnabled) {
+        try {
+            let response;
+            if (currentlyEnabled) {
+                response = await fetch(`/alarms/${id}/disable`, { method: 'POST' });
+            } else {
+                // Currently we don't have an enable endpoint, so we'd need to update the alarm
+                showNotification('Enabling alarms is not supported in the web interface yet', 'error');
+                return;
+            }
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification(`Alarm ${currentlyEnabled ? 'disabled' : 'enabled'}`);
+                fetchAlarms();
+            }
+        } catch (error) {
+            console.error('Error toggling alarm:', error);
+        }
+    }
+    
+    // Initial fetch
+    fetchAlarms();
+});
+</script>
+{% endblock %}
