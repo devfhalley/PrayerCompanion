@@ -57,6 +57,23 @@ class Alarm:
             else:
                 # Assume it's already in milliseconds
                 alarm.time = data['time']
+        elif 'time_str' in data:
+            # Handle time string (HH:MM) from time_str field
+            hour, minute = map(int, data['time_str'].split(':'))
+            
+            # If date_str is specified, use it
+            if 'date_str' in data:
+                date_obj = datetime.strptime(data['date_str'], '%Y-%m-%d')
+                time_obj = datetime(
+                    date_obj.year, date_obj.month, date_obj.day,
+                    hour, minute
+                )
+                alarm.time = int(time_obj.timestamp() * 1000)
+            else:
+                # Use today's date with the specified time
+                now = datetime.now()
+                time_obj = datetime(now.year, now.month, now.day, hour, minute)
+                alarm.time = int(time_obj.timestamp() * 1000)
         elif 'hour' in data and 'minute' in data:
             # If hour and minute are specified directly
             hour = data['hour']

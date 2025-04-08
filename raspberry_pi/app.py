@@ -237,5 +237,8 @@ if __name__ == '__main__':
     # Give schedulers time to initialize
     time.sleep(2)
     
+    # Debug info about host and port
+    logger.info("Starting Flask app on host='0.0.0.0', port=5000")
+    
     # Start Flask app
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    app.run(host='0.0.0.0', port=5000, threaded=True, debug=False)
