@@ -1,0 +1,155 @@
+# Prayer Alarm System
+
+A comprehensive Islamic prayer alarm and reminder system with two main components:
+1. An Android app that serves as the controller
+2. A Raspberry Pi that functions as a headless speaker device
+
+## System Overview
+
+The Prayer Alarm System provides the following features:
+
+- **Islamic Prayer Time Scheduling**: Automatically fetches and announces prayer times for Jakarta, Indonesia
+- **Custom Alarm System**: Set alarms for specific times/days with repeat options and custom sounds
+- **Push-to-Talk**: Speak through the Android app and have your voice played through the Raspberry Pi speaker
+
+## Project Structure
+
+The project is organized into two main components:
+
+```
+/android_app      - Android controller application
+/raspberry_pi     - Raspberry Pi server for audio playback
+```
+
+## Raspberry Pi Server
+
+### Dependencies
+
+- **Python 3.10+**
+- **Flask**: Web framework for the REST API
+- **Flask-Sock**: WebSocket support for push-to-talk functionality
+- **gTTS (Google Text-to-Speech)**: For text-to-speech audio generation
+- **Pygame**: For audio playback
+- **Requests**: For making HTTP requests to prayer time API
+- **Schedule**: For scheduling alarms and prayer notifications
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/prayer-alarm-system.git
+   cd prayer-alarm-system
+   ```
+
+2. Install Python dependencies:
+   ```bash
+   pip install flask flask-sock gtts pygame requests schedule
+   ```
+
+3. Run the server:
+   ```bash
+   cd raspberry_pi
+   python app.py
+   ```
+
+The server will start on port 5000 and automatically:
+- Initialize the database
+- Fetch prayer times for the next 7 days
+- Load any configured alarms
+- Start the prayer and alarm schedulers
+
+### Configuration
+
+The system configuration is defined in `raspberry_pi/config.py`. You can modify:
+
+- `PRAYER_CITY`: City for prayer times (default: "Jakarta")
+- `PRAYER_COUNTRY`: Country for prayer times (default: "Indonesia")
+- `PRAYER_CALCULATION_METHOD`: Calculation method ID (default: 11 for Indonesian Ministry of Religious Affairs)
+
+### API Endpoints
+
+The server provides the following API endpoints:
+
+- `GET /status` - Check server status
+- `GET /alarms` - Get all alarms
+- `POST /alarms` - Add or update an alarm
+- `DELETE /alarms/{id}` - Delete an alarm
+- `POST /alarms/{id}/disable` - Disable an alarm
+- `GET /prayer-times` - Get prayer times for a specific date
+- `POST /prayer-times/refresh` - Force refresh of prayer times
+- `POST /stop-audio` - Stop any playing audio
+- `WebSocket /ws` - WebSocket endpoint for push-to-talk
+
+## Android App
+
+### Dependencies
+
+- **Minimum SDK**: Android 7.0 (API level 24)
+- **Target SDK**: Android 13 (API level 33)
+- **Java Version**: Java 8+
+- **Libraries**:
+  - **AndroidX Core**: Core Android components
+  - **AndroidX AppCompat**: Backward compatibility
+  - **Material Design Components**: UI elements
+  - **Room**: Database management for storing alarm and prayer time data
+  - **Retrofit**: HTTP client for API calls
+  - **OkHttp WebSockets**: WebSocket client for push-to-talk feature
+  - **Gson**: JSON serialization/deserialization
+
+### Installation
+
+1. Open the project in Android Studio:
+   ```
+   android_app/
+   ```
+
+2. Configure the server address:
+   - Open `RaspberryPiApi.java`
+   - Update the `BASE_URL` to point to your Raspberry Pi's IP address
+
+3. Build and install the app:
+   - Connect your Android device
+   - Run the app from Android Studio
+
+### Features
+
+The Android app provides the following functionalities:
+
+- **Main Dashboard**: Overview of the next prayer time and quick actions
+- **Prayer Times**: View today's prayer times and disable/enable notifications
+- **Alarm Management**: Create, edit, and delete alarms with custom settings
+- **Push-to-Talk**: Real-time voice streaming to the Raspberry Pi
+- **Settings**: Configure server connection and general preferences
+
+## Database Structure
+
+The system uses SQLite databases on both the Raspberry Pi and Android app:
+
+### Raspberry Pi (`prayer_alarm.db`)
+
+- **alarms**: Stores alarm configurations
+- **prayer_times**: Stores fetched prayer times
+
+### Android App (Room Database)
+
+- **alarms**: Stores local alarm configurations for display
+- **prayer_times**: Caches prayer times for offline viewing
+
+## Troubleshooting
+
+- **Server Connection Issues**: Make sure your Raspberry Pi and Android device are on the same network
+- **Audio Playback Problems**: Check that your Raspberry Pi is properly connected to a speaker
+- **Prayer Time Errors**: Verify your internet connection to fetch prayer times from the API
+- **WebSocket Connection Failures**: Ensure firewalls are not blocking WebSocket connections
+
+## Development
+
+The project is structured for easy modification:
+
+- **Adding New Features**: Implement endpoints in `app.py` and corresponding functions in the Android app
+- **Changing Prayer Time Source**: Modify the `PrayerScheduler` class to use a different API
+- **Adding New Sound Options**: Place custom sounds in the `raspberry_pi/sounds/` directory
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
