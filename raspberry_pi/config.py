@@ -17,6 +17,7 @@ class Config:
     # Audio configuration
     DEFAULT_ADHAN_SOUND = os.path.join(os.path.dirname(__file__), "sounds", "default_adhan.mp3")
     DEFAULT_ALARM_SOUND = os.path.join(os.path.dirname(__file__), "sounds", "default_alarm.mp3")
+    VOLUME = 70  # Default volume level (0-100)
     
     # Make sure the sounds directory exists
     os.makedirs(os.path.join(os.path.dirname(__file__), "sounds"), exist_ok=True)

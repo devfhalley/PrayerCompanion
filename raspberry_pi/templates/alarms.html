@@ -35,12 +35,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             console.log('Fetching alarms from server...');
-            // Add cache-busting timestamp to prevent browser caching
+            // Add stronger cache-busting with a random value and timestamp
             const timestamp = new Date().getTime();
-            const response = await fetch(`/alarms?t=${timestamp}`, {
+            const random = Math.floor(Math.random() * 1000000);
+            const response = await fetch(`/alarms?t=${timestamp}&r=${random}`, {
+                method: 'GET',
                 headers: {
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
                 }
             });
             

@@ -234,12 +234,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 showNotification('Alarm added successfully');
                 // Force redirect to alarms page with a timestamp to prevent caching
                 const timestamp = new Date().getTime();
+                const random = Math.floor(Math.random() * 1000000);
                 console.log('Redirecting to alarms page...');
+                
+                // Remove loading overlay if it exists
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.remove();
+                }
                 
                 // Use setTimeout to ensure the notification is shown before redirecting
                 setTimeout(() => {
-                    window.location.href = `/web/alarms?t=${timestamp}`;
-                }, 500);
+                    try {
+                        // Use location.replace to force a complete page refresh without using browser history
+                        window.location.replace(`/web/alarms?t=${timestamp}&r=${random}`);
+                    } catch (e) {
+                        console.error('Error during redirect:', e);
+                        // Fallback redirect method
+                        window.location.href = `/web/alarms?t=${timestamp}&r=${random}`;
+                    }
+                }, 1000);
             } else {
                 throw new Error(result.message || 'Unknown error when adding alarm');
             }

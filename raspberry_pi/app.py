@@ -200,10 +200,27 @@ def add_or_update_alarm():
 @app.route('/alarms/<int:alarm_id>', methods=['DELETE'])
 def delete_alarm(alarm_id):
     """Delete an alarm."""
-    db = get_db()
-    db.delete_alarm(alarm_id)
-    alarm_scheduler.remove_alarm(alarm_id)
-    return jsonify({"status": "success", "message": "Alarm deleted"})
+    try:
+        db = get_db()
+        # First check if alarm exists to avoid errors
+        alarm = db.get_alarm(alarm_id)
+        
+        if not alarm:
+            return jsonify({"status": "error", "message": f"Alarm with ID {alarm_id} not found"}), 404
+            
+        # Remove from database first
+        db.delete_alarm(alarm_id)
+        
+        # Then remove from scheduler
+        alarm_scheduler.remove_alarm(alarm_id)
+        
+        # Log the deletion for debugging
+        app.logger.info(f"Alarm {alarm_id} deleted successfully")
+        
+        return jsonify({"status": "success", "message": "Alarm deleted"})
+    except Exception as e:
+        app.logger.error(f"Error deleting alarm {alarm_id}: {str(e)}")
+        return jsonify({"status": "error", "message": f"Failed to delete alarm: {str(e)}"}), 500
 
 @app.route('/alarms/<int:alarm_id>/disable', methods=['POST'])
 def disable_alarm(alarm_id):
@@ -513,11 +530,9 @@ def update_volume():
         return jsonify({"status": "error", "message": "Invalid volume value"}), 400
     
     # In a real Raspberry Pi, you would use system commands to adjust volume
-    # For now, we just store the volume value in a global variable
-    if not hasattr(update_volume, 'current_volume'):
-        update_volume.current_volume = 70  # Default volume
-    
-    update_volume.current_volume = volume
+    # Store the volume in Config
+    # Use setattr to avoid LSP issues
+    setattr(Config, 'VOLUME', volume)
     
     # Broadcast volume change to all connected clients
     broadcast_message({
@@ -530,11 +545,10 @@ def update_volume():
 @app.route('/volume', methods=['GET'])
 def get_volume():
     """Get current system volume."""
-    # Initialize volume if not set
-    if not hasattr(update_volume, 'current_volume'):
-        update_volume.current_volume = 70  # Default volume
+    # Get volume from Config, defaulting to 70 if not set
+    volume = getattr(Config, 'VOLUME', 70)
     
-    return jsonify({"status": "success", "volume": update_volume.current_volume})
+    return jsonify({"status": "success", "volume": volume})
 
 def start_schedulers():
     """Start the prayer and alarm schedulers."""
