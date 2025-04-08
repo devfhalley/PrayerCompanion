@@ -69,7 +69,13 @@
         </div>
         
         <div class="form-group">
-            <button type="submit" class="btn">Save Alarm</button>
+            <button type="submit" id="submit-button" class="btn">Save Alarm</button>
+            <div id="submit-spinner" class="spinner" style="display: none;">
+                <div class="spinner-border" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+                <span>Processing...</span>
+            </div>
         </div>
     </form>
 </div>
@@ -112,8 +118,23 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Custom submission handling
     const form = document.querySelector('form.api-form');
+    const submitButton = document.getElementById('submit-button');
+    const submitSpinner = document.getElementById('submit-spinner');
+    let isSubmitting = false;
+    
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
+        
+        // Prevent double submissions
+        if (isSubmitting) {
+            return;
+        }
+        
+        // Show loading state
+        isSubmitting = true;
+        submitButton.disabled = true;
+        submitButton.style.opacity = '0.7';
+        submitSpinner.style.display = 'flex';
         
         // Gather all the data
         const alarmTime = document.getElementById('alarm-time').value;
@@ -139,10 +160,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 days.push(document.querySelector(`input[name="days[${i}]"]`).checked);
             }
             data.days = days;
+            
+            // Validate: at least one day must be selected for repeating alarms
+            if (!days.some(day => day)) {
+                showNotification('Please select at least one day for repeating alarm', 'error');
+                resetSubmitButton();
+                return;
+            }
         } else {
             // Get date for one-time alarm
             const alarmDate = document.getElementById('alarm-date').value;
             data.date = alarmDate;
+            
+            // Validate date (must be today or in future)
+            const selectedDate = new Date(alarmDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            if (selectedDate < today) {
+                showNotification('Please select today or a future date', 'error');
+                resetSubmitButton();
+                return;
+            }
         }
         
         if (isTts) {
@@ -150,6 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const message = document.getElementById('alarm-message').value;
             if (!message.trim()) {
                 showNotification('Please enter a message for text-to-speech', 'error');
+                resetSubmitButton();
                 return;
             }
             data.message = message;
@@ -168,15 +208,26 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (result.status === 'success') {
                 showNotification('Alarm added successfully');
+                // Redirect to alarms page
                 window.location.href = '/web/alarms';
             } else {
                 showNotification(result.message || 'Failed to add alarm', 'error');
+                resetSubmitButton();
             }
         } catch (error) {
             console.error('Error adding alarm:', error);
             showNotification('Failed to add alarm', 'error');
+            resetSubmitButton();
         }
     });
+    
+    // Function to reset the submit button state
+    function resetSubmitButton() {
+        isSubmitting = false;
+        submitButton.disabled = false;
+        submitButton.style.opacity = '1';
+        submitSpinner.style.display = 'none';
+    }
 });
 </script>
 {% endblock %}

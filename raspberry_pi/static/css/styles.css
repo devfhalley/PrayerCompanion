@@ -488,6 +488,8 @@ footer {
     transform: translateY(0);
     transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
     animation: float-in 0.5s forwards;
+    background: linear-gradient(135deg, #2b8a3e, #2c6c3b);
+    color: white;
 }
 
 .prayer-countdown.floating.hidden {
@@ -651,4 +653,34 @@ footer {
         right: 20px;
         max-width: none;
     }
+}
+
+/* Form submission spinner */
+.spinner {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+    color: #666;
+}
+
+.spinner-border {
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: #2b8a3e;
+    margin-right: 10px;
+    animation: spinner 1s linear infinite;
+}
+
+@keyframes spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Button disabled state */
+button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }
