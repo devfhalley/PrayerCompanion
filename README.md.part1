@@ -1,0 +1,22 @@
+# Prayer Alarm System
+
+A comprehensive Islamic prayer alarm and reminder system with two main components:
+1. An Android app that serves as the controller
+2. A Raspberry Pi that functions as a headless speaker device
+
+## System Overview
+
+The Prayer Alarm System provides the following features:
+
+- **Islamic Prayer Time Scheduling**: Automatically fetches and announces prayer times for Jakarta, Indonesia
+- **Custom Alarm System**: Set alarms for specific times/days with repeat options and custom sounds
+- **Push-to-Talk**: Speak through the Android app and have your voice played through the Raspberry Pi speaker
+
+## Project Structure
+
+The project is organized into two main components:
+
+```
+/android_app      - Android controller application
+/raspberry_pi     - Raspberry Pi server for audio playback
+```

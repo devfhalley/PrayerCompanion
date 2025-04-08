@@ -1,5 +1,7 @@
 {pkgs}: {
   deps = [
+    pkgs.openjdk
+    pkgs.gradle
     pkgs.sqlite
     pkgs.postgresql
     pkgs.portmidi
