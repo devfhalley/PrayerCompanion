@@ -52,5 +52,9 @@ args = "cd raspberry_pi && python app.py"
 run = ["sh", "-c", "cd raspberry_pi && python app.py"]
 
 [[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
 localPort = 8000
 externalPort = 80

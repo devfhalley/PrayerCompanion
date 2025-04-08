@@ -58,21 +58,19 @@ def init_db():
 @contextmanager
 def _get_db_connection():
     """Get a database connection."""
-    global _conn
-    
-    with _conn_lock:
-        if _conn is None:
-            db_path = 'prayer_alarm.db'
-            _conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
-            _conn.row_factory = sqlite3.Row
+    # Use a thread-local connection for SQLite
+    db_path = 'prayer_alarm.db'
+    conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
     
     try:
-        yield _conn
+        yield conn
     except sqlite3.Error as e:
         logger.error(f"Database error: {str(e)}")
         raise
     finally:
-        pass  # Connection is kept open and managed globally
+        # We don't close the connection as we're using check_same_thread=False
+        pass
 
 def get_db():
     """Get the database wrapper."""
