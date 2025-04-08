@@ -32,28 +32,7 @@
             </div>
         </div>
         
-        <div class="prayer-countdown" id="prayer-countdown">
-            <div class="countdown-header">Time Remaining Until Next Prayer</div>
-            <div class="countdown-timer">
-                <div class="countdown-segment">
-                    <div class="countdown-value hours">00</div>
-                    <div class="countdown-label">Hours</div>
-                </div>
-                <div class="countdown-separator">:</div>
-                <div class="countdown-segment">
-                    <div class="countdown-value minutes">00</div>
-                    <div class="countdown-label">Minutes</div>
-                </div>
-                <div class="countdown-separator">:</div>
-                <div class="countdown-segment">
-                    <div class="countdown-value seconds">00</div>
-                    <div class="countdown-label">Seconds</div>
-                </div>
-            </div>
-            <div class="prayer-progress-bar">
-                <div class="prayer-progress-fill"></div>
-            </div>
-        </div>
+
         
         <div id="prayer-times-list">
             Loading prayer times...
@@ -798,14 +777,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Start WebSocket connection
     setupWebSocket();
     
-    // Initialize prayer countdown widget
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize the widget with container ID
-        initializePrayerCountdown({
-            containerId: 'prayer-countdown',
-            prayerTimesState: window.prayerTimesState
-        });
-    });
+
     
     // Add some styling
     const style = document.createElement('style');
