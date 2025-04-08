@@ -174,10 +174,13 @@ public class PushToTalkActivity extends AppCompatActivity {
             
             if (bytesRead > 0) {
                 try {
-                    // Create a JSON message with audio data
+                    // Create a JSON message with audio data and format information
                     JSONObject message = new JSONObject();
                     message.put("type", "ptt_audio");
                     message.put("data", android.util.Base64.encodeToString(buffer, 0, bytesRead, android.util.Base64.DEFAULT));
+                    message.put("format", "pcm_16bit"); // PCM 16-bit audio format from AudioRecord
+                    message.put("sample_rate", SAMPLE_RATE);
+                    message.put("channels", 1); // Mono
                     
                     // Send through WebSocket
                     webSocketService.send(message.toString());

@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.ffmpeg-full
     pkgs.openjdk
     pkgs.gradle
     pkgs.sqlite

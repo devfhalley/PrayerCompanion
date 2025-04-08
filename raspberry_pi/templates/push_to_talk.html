@@ -59,9 +59,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Request access to the microphone
     async function initAudio() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Request audio with specific constraints for voice
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100,
+                    channelCount: 1
+                } 
+            });
             
-            mediaRecorder = new MediaRecorder(stream);
+            // Use a different MIME type - wav works better for our backend
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'audio/webm;codecs=opus'
+            });
             
             mediaRecorder.ondataavailable = function(event) {
                 if (event.data.size > 0) {
@@ -72,16 +83,17 @@ document.addEventListener('DOMContentLoaded', function() {
             mediaRecorder.onstop = function() {
                 if (audioChunks.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
                     // Combine chunks and convert to base64
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
                     const reader = new FileReader();
                     
                     reader.onloadend = function() {
                         const base64data = reader.result.split(',')[1];
                         
-                        // Send the audio data
+                        // Add format information to help the server process it correctly
                         const message = {
                             type: 'ptt_audio',
-                            data: base64data
+                            data: base64data,
+                            format: 'webm_opus'
                         };
                         
                         ws.send(JSON.stringify(message));

@@ -235,24 +235,62 @@ table th {
     width: 120px;
     height: 120px;
     border-radius: 60px;
-    background-color: var(--accent-color);
+    background-color: #888; /* Default gray state */
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto;
     cursor: pointer;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    transition: transform 0.1s, box-shadow 0.1s;
+    transition: all 0.2s ease-in-out;
+    position: relative;
+    overflow: hidden;
 }
 
-.ptt-button:active {
+.ptt-button:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.ptt-button:active:before,
+.ptt-button.active:before {
+    opacity: 1;
+}
+
+.ptt-button.ready {
+    background-color: var(--primary-color);
+    box-shadow: 0 6px 12px rgba(76, 175, 80, 0.4);
+}
+
+.ptt-button.active {
+    background-color: var(--error-color);
     transform: scale(0.95);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 3px 6px rgba(244, 67, 54, 0.4);
 }
 
 .ptt-icon {
     font-size: 48px;
     color: white;
+    transition: transform 0.2s;
+}
+
+.ptt-button.active .ptt-icon {
+    transform: scale(0.9);
+}
+
+#status-message {
+    margin: 15px 0;
+    padding: 10px;
+    border-radius: 4px;
+    background-color: var(--light-bg);
+    display: inline-block;
 }
 
 .murattal-list {

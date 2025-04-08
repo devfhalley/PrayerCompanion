@@ -13,6 +13,7 @@ import pygame
 import gtts
 from io import BytesIO
 import tempfile
+from pydub import AudioSegment
 
 logger = logging.getLogger(__name__)
 
@@ -150,21 +151,77 @@ class AudioPlayer:
         """Internal method to play audio from bytes."""
         try:
             logger.info("Playing audio from bytes")
+            temp_filename = None
             
-            # Create a temporary file
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as fp:
-                fp.write(audio_bytes)
-                temp_filename = fp.name
-            
-            # Play the temporary file
-            self._play_file_internal(temp_filename)
-            
-            # Clean up - delete the temporary file
             try:
-                os.unlink(temp_filename)
-            except:
-                pass
-            
+                # First try to directly save and play as WAV
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as fp:
+                    fp.write(audio_bytes)
+                    temp_filename = fp.name
+                
+                # Try to play the WAV file
+                try:
+                    self._play_file_internal(temp_filename)
+                    logger.info("Successfully played audio as WAV")
+                    return
+                except Exception as wav_error:
+                    logger.warning(f"Failed to play as WAV, will try conversion: {str(wav_error)}")
+                    
+                    # Clean up the failed WAV file
+                    try:
+                        os.unlink(temp_filename)
+                    except:
+                        pass
+                    
+                    # Try to convert using pydub
+                    logger.info("Attempting to convert audio with pydub")
+                    with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as webm_fp:
+                        webm_fp.write(audio_bytes)
+                        webm_filename = webm_fp.name
+                
+                    try:
+                        # Try to load as various formats
+                        for fmt in ['webm', 'ogg', 'mp3']:
+                            try:
+                                logger.info(f"Trying to load as {fmt} format")
+                                audio = AudioSegment.from_file(webm_filename, format=fmt)
+                                
+                                # Convert to WAV
+                                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_fp:
+                                    wav_filename = wav_fp.name
+                                
+                                # Export as WAV
+                                audio.export(wav_filename, format="wav")
+                                
+                                # Try to play the converted file
+                                self._play_file_internal(wav_filename)
+                                logger.info(f"Successfully converted and played as {fmt}")
+                                
+                                # Set temp_filename for cleanup
+                                temp_filename = wav_filename
+                                break
+                            except Exception as format_error:
+                                logger.warning(f"Failed to convert as {fmt}: {str(format_error)}")
+                                continue
+                    
+                    except Exception as pydub_error:
+                        logger.error(f"Error converting audio: {str(pydub_error)}")
+                    
+                    finally:
+                        # Clean up the webm file
+                        try:
+                            os.unlink(webm_filename)
+                        except:
+                            pass
+                    
+            finally:
+                # Clean up any temporary files
+                if temp_filename and os.path.exists(temp_filename):
+                    try:
+                        os.unlink(temp_filename)
+                    except:
+                        pass
+                
         except Exception as e:
             logger.error(f"Error playing audio bytes: {str(e)}")
     
