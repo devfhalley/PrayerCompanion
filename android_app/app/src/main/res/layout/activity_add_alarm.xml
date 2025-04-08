@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".AddAlarmActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Set Alarm"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Time Selection -->
+        <TextView
+            android:id="@+id/timeText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="12:00 PM"
+            android:textSize="48sp"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:layout_marginBottom="24dp"
+            android:background="#E8F5E9"
+            android:padding="16dp" />
+
+        <!-- Repeat Options -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
+
+            <CheckBox
+                android:id="@+id/repeatCheckBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Repeat"
+                android:textSize="16sp"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <ToggleButton
+                    android:id="@+id/sundayButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:textOff="Su"
+                    android:textOn="Su"
+                    android:enabled="false" />
+
+                <ToggleButton
+                    android:id="@+id/mondayButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:textOff="Mo"
+                    android:textOn="Mo"
+                    android:enabled="false" />
+
+                <ToggleButton
+                    android:id="@+id/tuesdayButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:textOff="Tu"
+                    android:textOn="Tu"
+                    android:enabled="false" />
+
+                <ToggleButton
+                    android:id="@+id/wednesdayButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:textOff="We"
+                    android:textOn="We"
+                    android:enabled="false" />
+
+                <ToggleButton
+                    android:id="@+id/thursdayButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:textOff="Th"
+                    android:textOn="Th"
+                    android:enabled="false" />
+
+                <ToggleButton
+                    android:id="@+id/fridayButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:textOff="Fr"
+                    android:textOn="Fr"
+                    android:enabled="false" />
+
+                <ToggleButton
+                    android:id="@+id/saturdayButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:textOff="Sa"
+                    android:textOn="Sa"
+                    android:enabled="false" />
+
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Alarm Type -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Alarm Type"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <RadioGroup
+            android:id="@+id/alarmTypeRadioGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
+
+            <RadioButton
+                android:id="@+id/soundFileRadio"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Sound File"
+                android:checked="true"
+                android:textSize="16sp" />
+
+            <RadioButton
+                android:id="@+id/ttsRadio"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Text-to-Speech"
+                android:textSize="16sp" />
+
+        </RadioGroup>
+
+        <!-- Sound File Selection -->
+        <Button
+            android:id="@+id/selectFileButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Select Sound File"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/selectedFileText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No file selected"
+            android:textAlignment="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- TTS Message -->
+        <EditText
+            android:id="@+id/ttsMessageInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Enter message for text-to-speech"
+            android:minLines="2"
+            android:maxLines="4"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Save/Cancel Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp">
+
+            <Button
+                android:id="@+id/cancelButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Cancel"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/saveButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Save"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

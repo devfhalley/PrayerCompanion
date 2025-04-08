@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/titleText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Prayer Alarm System"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textAlignment="center"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:id="@+id/dateTimeText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Monday, January 1, 2023\n12:00 PM"
+        android:textSize="18sp"
+        android:textAlignment="center"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/nextPrayerText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Next Prayer: Loading..."
+        android:textSize="16sp"
+        android:textAlignment="center"
+        android:padding="16dp"
+        android:background="#E8F5E9"
+        android:layout_marginBottom="32dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/alarmsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Alarms"
+            android:textSize="16sp"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/prayerTimesButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Prayer Times"
+            android:textSize="16sp"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/pushToTalkButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Push to Talk"
+            android:textSize="16sp"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/settingsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:textSize="16sp"
+            android:padding="16dp" />
+
+    </LinearLayout>
+
+</LinearLayout>
