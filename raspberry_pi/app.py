@@ -7,6 +7,7 @@ This module initializes all components and starts the Flask server.
 import os
 import logging
 import time
+import json
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from werkzeug.utils import secure_filename
@@ -17,6 +18,7 @@ from models import Alarm, PrayerTime
 from prayer_scheduler import PrayerScheduler
 from alarm_scheduler import AlarmScheduler
 from audio_player import AudioPlayer
+from config import Config
 from websocket_server import setup_websocket, broadcast_message
 from config import Config
 
@@ -500,6 +502,39 @@ def update_preferences():
     # For now, we just acknowledge the change
     
     return jsonify({"status": "success", "message": "Preferences updated"})
+
+@app.route('/volume', methods=['POST'])
+def update_volume():
+    """Update system volume."""
+    data = request.json
+    volume = data.get('volume')
+    
+    if volume is None or not isinstance(volume, int) or volume < 0 or volume > 100:
+        return jsonify({"status": "error", "message": "Invalid volume value"}), 400
+    
+    # In a real Raspberry Pi, you would use system commands to adjust volume
+    # For now, we just store the volume value in a global variable
+    if not hasattr(update_volume, 'current_volume'):
+        update_volume.current_volume = 70  # Default volume
+    
+    update_volume.current_volume = volume
+    
+    # Broadcast volume change to all connected clients
+    broadcast_message({
+        "type": "volume_changed",
+        "volume": volume
+    })
+    
+    return jsonify({"status": "success", "message": "Volume updated", "volume": volume})
+
+@app.route('/volume', methods=['GET'])
+def get_volume():
+    """Get current system volume."""
+    # Initialize volume if not set
+    if not hasattr(update_volume, 'current_volume'):
+        update_volume.current_volume = 70  # Default volume
+    
+    return jsonify({"status": "success", "volume": update_volume.current_volume})
 
 def start_schedulers():
     """Start the prayer and alarm schedulers."""

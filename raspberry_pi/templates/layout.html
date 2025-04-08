@@ -16,9 +16,9 @@
             <nav>
                 <ul>
                     <li><a href="{{ url_for('web_home') }}" {% if request.endpoint == 'web_home' %}class="active"{% endif %}>Home</a></li>
-                    <li><a href="{{ url_for('web_prayer_times') }}" {% if request.endpoint == 'web_prayer_times' %}class="active"{% endif %}>Prayer Times</a></li>
+                    <li><a href="{{ url_for('web_prayer_times') }}" {% if request.endpoint == 'web_prayer_times' %}class="active"{% endif %}>Adzan</a></li>
                     <li><a href="{{ url_for('web_alarms') }}" {% if request.endpoint == 'web_alarms' %}class="active"{% endif %}>Alarms</a></li>
-                    <li><a href="{{ url_for('web_push_to_talk') }}" {% if request.endpoint == 'web_push_to_talk' %}class="active"{% endif %}>Push-to-Talk</a></li>
+                    <li><a href="{{ url_for('web_push_to_talk') }}" {% if request.endpoint == 'web_push_to_talk' %}class="active"{% endif %}>Talk</a></li>
                     <li><a href="{{ url_for('web_murattal') }}" {% if request.endpoint == 'web_murattal' %}class="active"{% endif %}>Murattal</a></li>
                     <li><a href="{{ url_for('web_settings') }}" {% if request.endpoint == 'web_settings' %}class="active"{% endif %}>Settings</a></li>
                 </ul>
@@ -40,6 +40,7 @@
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
     <script src="{{ url_for('static', filename='js/audio_status.js') }}"></script>
     <script src="{{ url_for('static', filename='js/global_ticker.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/volume_control.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

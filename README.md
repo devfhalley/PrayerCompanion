@@ -73,8 +73,29 @@ The Raspberry Pi server exposes the following API endpoints:
 ### Raspberry Pi Setup
 
 1. Clone the repository to your Raspberry Pi
-2. Install the required dependencies
-3. Run the server: `python raspberry_pi/app.py`
+2. Install the required dependencies:
+   ```
+   pip3 install flask flask_sock gtts pydub pygame requests schedule
+   ```
+3. Run the server manually (for testing):
+   ```
+   cd raspberry_pi
+   python3 app.py
+   ```
+
+### Running as a System Service
+
+For automatic startup at boot time, you can install the application as a systemd service:
+
+1. Use the test script to verify your setup:
+   ```
+   cd raspberry_pi
+   ./test_service.sh
+   ```
+
+2. Follow the installation instructions in the `raspberry_pi/INSTALL_SERVICE.md` file to set up the systemd service.
+
+Once installed as a service, the Prayer Alarm System will automatically start when your Raspberry Pi boots up, and will restart if it crashes.
 
 ### Android App Setup
 

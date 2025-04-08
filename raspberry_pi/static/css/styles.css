@@ -420,3 +420,48 @@ footer {
         margin-top: 10px;
     }
 }
+
+/* Global Ticker */
+.global-ticker {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 0;
+    text-align: center;
+    z-index: 9999;
+    overflow: hidden;
+}
+
+.global-ticker.hidden {
+    display: none;
+}
+
+.global-ticker-content {
+    display: inline-block;
+    white-space: nowrap;
+    animation: global-ticker-slide 15s linear infinite;
+    padding-right: 100px;
+}
+
+@keyframes global-ticker-slide {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+}
+
+.global-ticker.prayer-time {
+    background-color: var(--accent-color);
+}
+
+.global-ticker.urgent {
+    background-color: var(--error-color);
+    animation: global-ticker-pulse 2s infinite;
+}
+
+@keyframes global-ticker-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}

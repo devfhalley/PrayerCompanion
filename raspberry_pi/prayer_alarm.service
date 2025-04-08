@@ -1,0 +1,19 @@
+[Unit]
+Description=Prayer Alarm System
+After=network.target
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/prayer_alarm/raspberry_pi
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 app.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
