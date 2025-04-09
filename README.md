@@ -42,6 +42,7 @@ The Raspberry Pi component serves as a headless speaker device with the followin
 
 - **RESTful API**: Provides endpoints for managing alarms and prayer times
 - **WebSocket Server**: Enables real-time push-to-talk functionality
+- **Secure Communications**: Supports HTTPS and WSS connections with self-signed certificates
 - **Audio Playback**: Plays MP3 files and text-to-speech using pygame
 - **Scheduling**: Manages both prayer time notifications and custom alarms
 - **Database**: Stores alarm and prayer time data in PostgreSQL (previously SQLite)
@@ -53,6 +54,7 @@ The Android application serves as a controller with the following capabilities:
 - **Alarm Management**: Create, edit, and delete alarms with various configuration options
 - **Prayer Time Visualization**: View today's prayer times and upcoming prayers
 - **Push-to-Talk Interface**: Speak through your phone to the Raspberry Pi speaker
+- **Secure Communications**: Supports HTTPS and WSS (WebSocket Secure) with self-signed certificates
 - **Settings**: Configure server connection details and preferences
 - **Room Database**: Stores a local cache of alarms and prayer times
 
@@ -85,6 +87,45 @@ The Raspberry Pi server exposes the following API endpoints:
    python3 app.py
    ```
 
+### HTTPS Setup
+
+The application now uses HTTPS with self-signed certificates for secure communication between the Android app and Raspberry Pi server. This is necessary for secure WebSocket connections (WSS) which are required by modern browsers for Push-to-Talk functionality.
+
+#### Certificate Generation
+
+1. Generate self-signed certificates on the Raspberry Pi:
+   ```bash
+   cd raspberry_pi
+   mkdir -p ssl
+   cd ssl
+   
+   # Generate a private key
+   openssl genrsa -out server.key 2048
+   
+   # Generate a certificate signing request
+   openssl req -new -key server.key -out server.csr -subj "/CN=localhost"
+   
+   # Generate a self-signed certificate (valid for 365 days)
+   openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+   
+   # Create a PEM file that combines the certificate and key
+   cat server.crt server.key > server.pem
+   ```
+
+2. Configure the server to use the certificates:
+   - The Flask app automatically looks for certificates in the `ssl` directory
+   - The certificate and key paths can be customized in `config.py`
+
+#### Android App Configuration
+
+The Android app is configured to trust self-signed certificates by implementing a trust-all certificate strategy:
+
+1. The `RaspberryPiApi` class uses a custom `configureTrustAllCertificates` method for HTTPS connections
+2. The `WebSocketService` class implements a similar strategy for secure WebSocket connections (WSS)
+3. Settings now include an option to toggle between HTTP and HTTPS (defaulting to HTTPS)
+
+> **Security Note**: Trusting all certificates is not recommended for production environments exposed to the internet. This implementation is appropriate for a local network where the Raspberry Pi and Android app are on the same trusted network.
+
 ### Running as a System Service
 
 For automatic startup at boot time, you can install the application as a systemd service:
@@ -103,7 +144,9 @@ Once installed as a service, the Prayer Alarm System will automatically start wh
 
 1. Import the android_app directory into Android Studio
 2. Configure your Raspberry Pi's IP address and port in the settings
-3. Build and install the APK on your Android device
+3. Enable HTTPS in the app settings (recommended for secure communications)
+4. Build and install the APK on your Android device
+5. The app automatically trusts the self-signed certificate from the Raspberry Pi server
 
 ## Database Migration
 
