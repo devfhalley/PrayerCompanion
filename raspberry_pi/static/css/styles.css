@@ -683,3 +683,197 @@ button:disabled {
     opacity: 0.7;
     cursor: not-allowed;
 }
+
+/* YouTube Player Styles */
+#youtube-player {
+    margin-top: 20px;
+}
+
+#youtube-player-container {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto 10px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    background-color: #000;
+    aspect-ratio: 16 / 9;
+}
+
+.youtube-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 0 auto 20px;
+    max-width: 640px;
+}
+
+.youtube-controls button {
+    padding: 8px 20px;
+    font-size: 14px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#youtube-playlist {
+    margin-top: 20px;
+    border: 1px solid var(--divider-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.playlist-header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 10px 15px;
+    font-weight: bold;
+}
+
+.playlist-items {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.playlist-item {
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--divider-color);
+    cursor: pointer;
+    transition: background-color 0.3s;
+    display: flex;
+    align-items: center;
+}
+
+.playlist-item:last-child {
+    border-bottom: none;
+}
+
+.playlist-item:hover {
+    background-color: var(--light-bg);
+}
+
+.playlist-item.active {
+    background-color: #e8f5e9;
+    border-left: 3px solid var(--primary-color);
+}
+
+.playlist-item-title {
+    flex-grow: 1;
+}
+
+.playlist-item-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.playlist-controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.no-videos {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+}
+
+/* YouTube management in settings */
+.youtube-form {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: var(--light-bg);
+    border-radius: 8px;
+}
+
+.youtube-list {
+    margin-top: 15px;
+}
+
+.youtube-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid var(--divider-color);
+}
+
+.youtube-item:last-child {
+    border-bottom: none;
+}
+
+.youtube-item-title {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.youtube-item-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.youtube-item-handle {
+    cursor: move;
+    padding: 0 8px;
+    color: #999;
+}
+
+/* Modal styles for YouTube video editing */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.modal-content {
+    background-color: var(--card-bg);
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    width: 80%;
+    max-width: 500px;
+    position: relative;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--divider-color);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+.modal-footer {
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid var(--divider-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}

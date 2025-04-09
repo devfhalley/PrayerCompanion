@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 import threading
 
 from database import init_db, get_db
-from models import Alarm, PrayerTime
+from models import Alarm, PrayerTime, YouTubeVideo
 from prayer_scheduler import PrayerScheduler
 from alarm_scheduler import AlarmScheduler
 from audio_player import AudioPlayer
@@ -834,7 +834,11 @@ def upload_murattal():
 @app.route('/web', methods=['GET'])
 def web_home():
     """Web interface home page."""
-    return render_template('index.html')
+    # Get enabled YouTube videos
+    db = get_db()
+    youtube_videos = db.get_enabled_youtube_videos()
+    
+    return render_template('index.html', youtube_videos=youtube_videos)
 
 @app.route('/web/prayer-times', methods=['GET'])
 def web_prayer_times():
@@ -891,10 +895,14 @@ def web_settings():
     db = get_db()
     prayer_times = db.get_todays_prayer_times()
     
+    # Get YouTube videos
+    youtube_videos = db.get_all_youtube_videos()
+    
     # Get configuration values
     return render_template('settings.html', 
                           adhan_sounds=adhan_sounds, 
                           prayers=prayer_times, 
+                          youtube_videos=youtube_videos,
                           default_adhan=Config.DEFAULT_ADHAN_SOUND,
                           prayer_city=Config.PRAYER_CITY,
                           prayer_country=Config.PRAYER_COUNTRY,
@@ -963,6 +971,117 @@ def get_volume():
     volume = getattr(Config, 'VOLUME', 70)
     
     return jsonify({"status": "success", "volume": volume})
+
+# YouTube Video Management Routes
+
+@app.route('/youtube-videos', methods=['GET'])
+def get_youtube_videos():
+    """Get all YouTube videos."""
+    db = get_db()
+    videos = db.get_all_youtube_videos()
+    return jsonify([video.to_dict() for video in videos])
+
+@app.route('/youtube-videos/enabled', methods=['GET'])
+def get_enabled_youtube_videos():
+    """Get all enabled YouTube videos."""
+    db = get_db()
+    videos = db.get_enabled_youtube_videos()
+    return jsonify([video.to_dict() for video in videos])
+
+@app.route('/youtube-videos', methods=['POST'])
+def add_youtube_video():
+    """Add a new YouTube video."""
+    data = request.json
+    
+    # Validate data
+    if 'url' not in data:
+        return jsonify({"status": "error", "message": "URL is required"}), 400
+        
+    # Create and populate YouTube video object
+    video = YouTubeVideo()
+    video.url = data['url']
+    video.title = data.get('title', '')
+    video.enabled = data.get('enabled', True)
+    
+    # Get position if provided, otherwise add to the end
+    if 'position' in data:
+        video.position = int(data['position'])
+    else:
+        # Get all videos to determine the next position
+        db = get_db()
+        existing_videos = db.get_all_youtube_videos()
+        video.position = len(existing_videos)
+    
+    # Add to database
+    db = get_db()
+    video_id = db.add_youtube_video(video)
+    
+    if video_id:
+        # Return the saved video
+        saved_video = db.get_youtube_video(video_id)
+        return jsonify({"status": "success", "message": "YouTube video added", "video": saved_video.to_dict()})
+    else:
+        return jsonify({"status": "error", "message": "Failed to add YouTube video"}), 500
+
+@app.route('/youtube-videos/<int:video_id>', methods=['PUT'])
+def update_youtube_video(video_id):
+    """Update an existing YouTube video."""
+    data = request.json
+    
+    # Get the existing video
+    db = get_db()
+    video = db.get_youtube_video(video_id)
+    
+    if not video:
+        return jsonify({"status": "error", "message": f"YouTube video with ID {video_id} not found"}), 404
+    
+    # Update fields
+    if 'url' in data:
+        video.url = data['url']
+    if 'title' in data:
+        video.title = data['title']
+    if 'enabled' in data:
+        video.enabled = bool(data['enabled'])
+    if 'position' in data:
+        video.position = int(data['position'])
+    
+    # Save changes
+    db.update_youtube_video(video)
+    
+    # Return the updated video
+    updated_video = db.get_youtube_video(video_id)
+    return jsonify({"status": "success", "message": "YouTube video updated", "video": updated_video.to_dict()})
+
+@app.route('/youtube-videos/<int:video_id>', methods=['DELETE'])
+def delete_youtube_video(video_id):
+    """Delete a YouTube video."""
+    db = get_db()
+    
+    # Check if the video exists
+    video = db.get_youtube_video(video_id)
+    if not video:
+        return jsonify({"status": "error", "message": f"YouTube video with ID {video_id} not found"}), 404
+    
+    # Delete the video
+    db.delete_youtube_video(video_id)
+    
+    return jsonify({"status": "success", "message": f"YouTube video with ID {video_id} deleted"})
+
+@app.route('/youtube-videos/reorder', methods=['POST'])
+def reorder_youtube_videos():
+    """Reorder YouTube videos."""
+    data = request.json
+    
+    if 'video_ids' not in data or not isinstance(data['video_ids'], list):
+        return jsonify({"status": "error", "message": "video_ids list is required"}), 400
+    
+    # Update positions
+    db = get_db()
+    db.reorder_youtube_videos(data['video_ids'])
+    
+    # Return the reordered videos
+    videos = db.get_all_youtube_videos()
+    return jsonify({"status": "success", "message": "YouTube videos reordered", "videos": [video.to_dict() for video in videos]})
 
 def start_schedulers():
     """Start the prayer and alarm schedulers."""

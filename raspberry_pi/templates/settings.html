@@ -113,6 +113,61 @@
         <button id="save-preferences" class="btn">Save Preferences</button>
     </div>
 </div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>YouTube Videos</h2>
+    </div>
+    <div class="card-content">
+        <div class="youtube-form">
+            <div class="form-group">
+                <label for="youtube-url">YouTube Video URL</label>
+                <input type="text" id="youtube-url" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+            <div class="form-group">
+                <label for="youtube-title">Title (Optional)</label>
+                <input type="text" id="youtube-title" class="form-control" placeholder="Custom title for this video">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="youtube-enabled" checked>
+                    Enable this video
+                </label>
+            </div>
+            <button id="add-youtube-video" class="btn">Add YouTube Video</button>
+        </div>
+        
+        <h3>Manage YouTube Videos</h3>
+        <div class="youtube-list" id="youtube-list">
+            {% if youtube_videos %}
+                {% for video in youtube_videos %}
+                <div class="youtube-item" data-id="{{ video.id }}">
+                    <div class="youtube-item-handle">
+                        <i class="fas fa-grip-vertical"></i>
+                    </div>
+                    <div class="youtube-item-title">
+                        {{ video.title or video.url }}
+                    </div>
+                    <div class="youtube-item-controls">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>
+                                <input type="checkbox" class="youtube-item-enabled" 
+                                       {% if video.enabled %}checked{% endif %}
+                                       onchange="updateYouTubeVideo({{ video.id }}, this)">
+                                Enabled
+                            </label>
+                        </div>
+                        <button class="btn btn-sm" onclick="editYouTubeVideo({{ video.id }})">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteYouTubeVideo({{ video.id }})">Delete</button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="no-videos">No YouTube videos added yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -403,6 +458,311 @@ function savePreferences() {
         console.error('Error:', error);
         showNotification('Error saving preferences', 'error');
     });
+}
+
+// YouTube video functions
+document.addEventListener('DOMContentLoaded', function() {
+    // Add YouTube video button
+    document.getElementById('add-youtube-video').addEventListener('click', addYouTubeVideo);
+    
+    // Initialize sortable for YouTube videos
+    if (typeof Sortable !== 'undefined') {
+        const youtubeList = document.getElementById('youtube-list');
+        if (youtubeList) {
+            new Sortable(youtubeList, {
+                handle: '.youtube-item-handle',
+                animation: 150,
+                onEnd: function() {
+                    // Get new order of videos
+                    const videoIds = [];
+                    document.querySelectorAll('.youtube-item').forEach(item => {
+                        videoIds.push(parseInt(item.getAttribute('data-id')));
+                    });
+                    
+                    // Update order in database
+                    if (videoIds.length > 0) {
+                        reorderYouTubeVideos(videoIds);
+                    }
+                }
+            });
+        }
+    }
+});
+
+// Function to add a new YouTube video
+function addYouTubeVideo() {
+    const urlInput = document.getElementById('youtube-url');
+    const titleInput = document.getElementById('youtube-title');
+    const enabledInput = document.getElementById('youtube-enabled');
+    
+    const url = urlInput.value.trim();
+    const title = titleInput.value.trim();
+    const enabled = enabledInput.checked;
+    
+    if (!url) {
+        showNotification('Please enter a YouTube URL', 'error');
+        return;
+    }
+    
+    // Validate YouTube URL
+    if (!isValidYouTubeUrl(url)) {
+        showNotification('Please enter a valid YouTube URL', 'error');
+        return;
+    }
+    
+    fetch('/youtube-videos', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            url: url,
+            title: title,
+            enabled: enabled
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('YouTube video added successfully', 'success');
+            
+            // Clear inputs
+            urlInput.value = '';
+            titleInput.value = '';
+            
+            // Reload the page to show the new video
+            window.location.reload();
+        } else {
+            showNotification('Error adding YouTube video: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error adding YouTube video', 'error');
+    });
+}
+
+// Function to update a YouTube video
+function updateYouTubeVideo(videoId, enabledCheckbox) {
+    const enabled = enabledCheckbox.checked;
+    
+    fetch(`/youtube-videos/${videoId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            enabled: enabled
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('YouTube video updated', 'success');
+        } else {
+            showNotification('Error updating YouTube video', 'error');
+            // Revert checkbox state
+            enabledCheckbox.checked = !enabled;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error updating YouTube video', 'error');
+        // Revert checkbox state
+        enabledCheckbox.checked = !enabled;
+    });
+}
+
+// Function to edit a YouTube video
+function editYouTubeVideo(videoId) {
+    // Get the video item
+    const videoItem = document.querySelector(`.youtube-item[data-id="${videoId}"]`);
+    if (!videoItem) return;
+    
+    // Get the current title and URL from the item
+    const titleElement = videoItem.querySelector('.youtube-item-title');
+    const currentTitle = titleElement.textContent.trim();
+    
+    // Create a simple modal for editing
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit YouTube Video</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit-youtube-title">Title</label>
+                    <input type="text" id="edit-youtube-title" class="form-control" value="${currentTitle}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-youtube-url">URL</label>
+                    <input type="text" id="edit-youtube-url" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-save" class="btn">Save Changes</button>
+                <button id="modal-cancel" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Close modal when clicking the close button or outside the modal
+    const closeBtn = modal.querySelector('.close');
+    closeBtn.onclick = function() {
+        document.body.removeChild(modal);
+    };
+    
+    window.onclick = function(event) {
+        if (event.target === modal) {
+            document.body.removeChild(modal);
+        }
+    };
+    
+    // Cancel button
+    const cancelBtn = modal.querySelector('#modal-cancel');
+    cancelBtn.onclick = function() {
+        document.body.removeChild(modal);
+    };
+    
+    // Save button
+    const saveBtn = modal.querySelector('#modal-save');
+    saveBtn.onclick = function() {
+        const newTitle = modal.querySelector('#edit-youtube-title').value.trim();
+        const newUrl = modal.querySelector('#edit-youtube-url').value.trim();
+        
+        // Prepare the update data
+        const updateData = {};
+        if (newTitle !== currentTitle) updateData.title = newTitle;
+        if (newUrl && isValidYouTubeUrl(newUrl)) updateData.url = newUrl;
+        
+        if (Object.keys(updateData).length === 0) {
+            document.body.removeChild(modal);
+            return;
+        }
+        
+        // Send update request
+        fetch(`/youtube-videos/${videoId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updateData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showNotification('YouTube video updated', 'success');
+                // Update the title in the DOM
+                if (updateData.title) {
+                    titleElement.textContent = updateData.title;
+                }
+                document.body.removeChild(modal);
+                
+                // If URL was updated, reload the page
+                if (updateData.url) {
+                    window.location.reload();
+                }
+            } else {
+                showNotification('Error updating YouTube video', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error updating YouTube video', 'error');
+        });
+    };
+}
+
+// Function to delete a YouTube video
+function deleteYouTubeVideo(videoId) {
+    if (!confirm('Are you sure you want to delete this YouTube video?')) {
+        return;
+    }
+    
+    fetch(`/youtube-videos/${videoId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('YouTube video deleted', 'success');
+            
+            // Remove the video item from the DOM
+            const videoItem = document.querySelector(`.youtube-item[data-id="${videoId}"]`);
+            if (videoItem) {
+                videoItem.remove();
+            }
+            
+            // If no videos left, show no videos message
+            const youtubeList = document.getElementById('youtube-list');
+            if (youtubeList.children.length === 0) {
+                youtubeList.innerHTML = '<p class="no-videos">No YouTube videos added yet.</p>';
+            }
+        } else {
+            showNotification('Error deleting YouTube video', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error deleting YouTube video', 'error');
+    });
+}
+
+// Function to reorder YouTube videos
+function reorderYouTubeVideos(videoIds) {
+    fetch('/youtube-videos/reorder', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            video_ids: videoIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('YouTube videos reordered', 'success');
+        } else {
+            showNotification('Error reordering YouTube videos', 'error');
+            // Reload the page to reset the order
+            window.location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error reordering YouTube videos', 'error');
+        // Reload the page to reset the order
+        window.location.reload();
+    });
+}
+
+// Helper function to validate YouTube URL
+function isValidYouTubeUrl(url) {
+    if (!url) return false;
+    
+    // Check using regular expressions
+    const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,  // Standard and shortened URLs
+        /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,  // Embed URLs
+        /youtube\.com\/v\/([a-zA-Z0-9_-]{11})/  // Old embed URLs
+    ];
+    
+    for (const pattern of patterns) {
+        if (pattern.test(url)) {
+            return true;
+        }
+    }
+    
+    return false;
 }
 </script>
 {% endblock %}

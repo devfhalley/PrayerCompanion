@@ -3,6 +3,9 @@
 Models module for Raspberry Pi Prayer Alarm System.
 This module defines the data models used by the application.
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 from datetime import datetime
 
@@ -195,3 +198,98 @@ class PrayerTime:
             'enabled': self.enabled,
             'custom_sound': self.custom_sound
         }
+
+
+class YouTubeVideo:
+    """YouTube video model."""
+    
+    def __init__(self, url=None, title=None, enabled=True, position=0):
+        """Initialize a new YouTubeVideo.
+        
+        Args:
+            url: YouTube video URL
+            title: Optional title for the video
+            enabled: Whether the video is enabled
+            position: Position in the playlist (0 = first)
+        """
+        self.id = None
+        self.url = url
+        self.title = title
+        self.enabled = enabled
+        self.position = position
+        self.created_at = datetime.now()
+    
+    @classmethod
+    def from_dict(cls, data):
+        """Create a YouTubeVideo from a dictionary.
+        
+        Args:
+            data: Dictionary with YouTube video data
+        
+        Returns:
+            YouTubeVideo object
+        """
+        video = cls()
+        
+        if 'id' in data:
+            video.id = data['id']
+        
+        if 'url' in data:
+            video.url = data['url']
+        
+        if 'title' in data:
+            video.title = data['title']
+        
+        if 'enabled' in data:
+            video.enabled = bool(data['enabled'])
+        
+        if 'position' in data:
+            video.position = int(data['position'])
+        
+        if 'created_at' in data and data['created_at']:
+            if isinstance(data['created_at'], str):
+                video.created_at = datetime.fromisoformat(data['created_at'])
+            else:
+                video.created_at = data['created_at']
+        
+        return video
+    
+    def to_dict(self):
+        """Convert the YouTubeVideo to a dictionary.
+        
+        Returns:
+            Dictionary representation of the YouTubeVideo
+        """
+        return {
+            'id': self.id,
+            'url': self.url,
+            'title': self.title,
+            'enabled': self.enabled,
+            'position': self.position,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+    
+    def get_video_id(self):
+        """Extract the YouTube video ID from the URL.
+        
+        Returns:
+            YouTube video ID or None if not found
+        """
+        if not self.url:
+            return None
+        
+        import re
+        
+        # YouTube URL patterns
+        patterns = [
+            r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})',  # Standard and shortened URLs
+            r'youtube\.com\/embed\/([a-zA-Z0-9_-]{11})',  # Embed URLs
+            r'youtube\.com\/v\/([a-zA-Z0-9_-]{11})'  # Old embed URLs
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, self.url)
+            if match:
+                return match.group(1)
+        
+        return None

@@ -62,6 +62,26 @@
         <button id="refresh-prayer-times" class="btn btn-secondary">Refresh Prayer Times</button>
     </div>
 </div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>YouTube Videos</h2>
+    </div>
+    
+    <div id="youtube-player">
+        <div id="youtube-player-container"></div>
+        
+        <div class="youtube-controls">
+            <button id="prev-video" class="btn btn-secondary">Previous</button>
+            <button id="next-video" class="btn btn-secondary">Next</button>
+        </div>
+        
+        <div id="youtube-playlist">
+            <div class="playlist-header">Playlist</div>
+            <div id="playlist-items" class="playlist-items">Loading videos...</div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -185,6 +205,212 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Refresh every minute
     setInterval(fetchNextPrayer, 60000);
+    
+    // YouTube player functionality
+    let youtubePlayer = null;
+    let currentVideoIndex = 0;
+    let videoList = [];
+    
+    // Load YouTube API
+    function loadYouTubeAPI() {
+        // This function loads the YouTube IFrame Player API asynchronously
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
+    
+    // Called when YouTube API is ready
+    function onYouTubeIframeAPIReady() {
+        fetchEnabledVideos().then(videos => {
+            if (videos.length > 0) {
+                // Use the server-side extracted video ID if available
+                const firstVideoId = videos[0].get_video_id || extractYouTubeId(videos[0].url);
+                createYouTubePlayer(firstVideoId);
+                updatePlaylist(videos);
+            } else {
+                document.getElementById('playlist-items').innerHTML = 'No videos available. Add some in the Settings page.';
+            }
+        });
+    }
+    
+    // Extract YouTube video ID from URL
+    function extractYouTubeId(url) {
+        if (!url) return null;
+        
+        const patterns = [
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,  // Standard and shortened URLs
+            /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,  // Embed URLs
+            /youtube\.com\/v\/([a-zA-Z0-9_-]{11})/  // Old embed URLs
+        ];
+        
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match) {
+                return match[1];
+            }
+        }
+        
+        return null;
+    }
+    
+    // Fetch enabled videos from the server
+    async function fetchEnabledVideos() {
+        try {
+            const response = await fetch('/youtube-videos/enabled');
+            const videos = await response.json();
+            videoList = videos;
+            return videos;
+        } catch (error) {
+            console.error('Error fetching YouTube videos:', error);
+            return [];
+        }
+    }
+    
+    // Create the YouTube player with the specified video
+    function createYouTubePlayer(videoId) {
+        if (!videoId) {
+            console.error('No video ID provided for YouTube player');
+            document.getElementById('youtube-player-container').innerHTML = '<div class="no-videos">No videos available. Add some in the Settings page.</div>';
+            return;
+        }
+        
+        youtubePlayer = new YT.Player('youtube-player-container', {
+            height: '360',
+            width: '640',
+            videoId: videoId,
+            playerVars: {
+                'playsinline': 1,
+                'autoplay': 0,
+                'controls': 1,
+                'rel': 0
+            },
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+    
+    // Called when the YouTube player is ready
+    function onPlayerReady(event) {
+        // You can auto-play if desired
+        // event.target.playVideo();
+    }
+    
+    // Called when the YouTube player state changes
+    function onPlayerStateChange(event) {
+        // When a video ends (state = 0), play the next one if available
+        if (event.data === YT.PlayerState.ENDED) {
+            playNextVideo();
+        }
+    }
+    
+    // Play the next video in the playlist
+    function playNextVideo() {
+        if (videoList.length > 0) {
+            currentVideoIndex = (currentVideoIndex + 1) % videoList.length;
+            const nextVideo = videoList[currentVideoIndex];
+            // Use the server-side extracted video ID if available
+            const videoId = nextVideo.get_video_id || extractYouTubeId(nextVideo.url);
+            
+            if (videoId && youtubePlayer) {
+                youtubePlayer.loadVideoById(videoId);
+                
+                // Update active class in playlist
+                document.querySelectorAll('.playlist-item').forEach((el, idx) => {
+                    if (idx === currentVideoIndex) {
+                        el.classList.add('active');
+                    } else {
+                        el.classList.remove('active');
+                    }
+                });
+            }
+        }
+    }
+    
+    // Play the previous video in the playlist
+    function playPreviousVideo() {
+        if (videoList.length > 0) {
+            currentVideoIndex = (currentVideoIndex - 1 + videoList.length) % videoList.length;
+            const prevVideo = videoList[currentVideoIndex];
+            // Use the server-side extracted video ID if available
+            const videoId = prevVideo.get_video_id || extractYouTubeId(prevVideo.url);
+            
+            if (videoId && youtubePlayer) {
+                youtubePlayer.loadVideoById(videoId);
+                
+                // Update active class in playlist
+                document.querySelectorAll('.playlist-item').forEach((el, idx) => {
+                    if (idx === currentVideoIndex) {
+                        el.classList.add('active');
+                    } else {
+                        el.classList.remove('active');
+                    }
+                });
+            }
+        }
+    }
+    
+    // Update the playlist display
+    function updatePlaylist(videos) {
+        const playlistContainer = document.getElementById('playlist-items');
+        
+        if (videos.length === 0) {
+            playlistContainer.innerHTML = 'No videos available. Add some in the Settings page.';
+            return;
+        }
+        
+        let playlistHTML = '';
+        videos.forEach((video, index) => {
+            const title = video.title || `Video ${index + 1}`;
+            // Use the server-side extracted video ID if available
+            const videoId = video.get_video_id || extractYouTubeId(video.url);
+            playlistHTML += `
+                <div class="playlist-item ${index === currentVideoIndex ? 'active' : ''}" 
+                     data-index="${index}" 
+                     data-video-id="${videoId}">
+                    <div class="playlist-item-title">${title}</div>
+                </div>
+            `;
+        });
+        
+        playlistContainer.innerHTML = playlistHTML;
+        
+        // Add click event listeners to playlist items
+        document.querySelectorAll('.playlist-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.getAttribute('data-index'));
+                currentVideoIndex = index;
+                const videoId = item.getAttribute('data-video-id');
+                
+                if (videoId && youtubePlayer) {
+                    youtubePlayer.loadVideoById(videoId);
+                    
+                    // Update active class
+                    document.querySelectorAll('.playlist-item').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    item.classList.add('active');
+                }
+            });
+        });
+    }
+    
+    // Add event listeners for previous and next buttons
+    document.getElementById('prev-video').addEventListener('click', () => {
+        playPreviousVideo();
+    });
+    
+    document.getElementById('next-video').addEventListener('click', () => {
+        playNextVideo();
+    });
+    
+    // Load the YouTube API
+    loadYouTubeAPI();
+    
+    // Make the onYouTubeIframeAPIReady function available globally
+    window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 });
 </script>
 {% endblock %}

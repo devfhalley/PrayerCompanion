@@ -67,6 +67,17 @@ def init_db():
         )
         ''')
         
+        # Create youtube_videos table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS youtube_videos (
+            id SERIAL PRIMARY KEY,
+            url TEXT NOT NULL,
+            title TEXT,
+            enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            position INTEGER NOT NULL DEFAULT 0
+        )
+        ''')
+        
         conn.commit()
     
     logger.info("PostgreSQL database initialized")
@@ -113,6 +124,9 @@ def get_db():
 
 class DatabaseWrapper:
     """Wrapper class for database operations."""
+    
+    # Import YouTubeVideo model
+    from models import YouTubeVideo
     
     def add_alarm(self, alarm):
         """Add an alarm to the database.
@@ -722,3 +736,159 @@ class DatabaseWrapper:
         prayer_time.custom_sound = row['custom_sound']
         
         return prayer_time
+        
+    # YouTube Video Management
+    
+    def add_youtube_video(self, youtube_video):
+        """Add a YouTube video to the database.
+        
+        Args:
+            youtube_video: YouTubeVideo object to add
+        
+        Returns:
+            YouTubeVideo ID
+        """
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+            INSERT INTO youtube_videos (url, title, enabled, position)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+            ''', (
+                youtube_video.url,
+                youtube_video.title,
+                youtube_video.enabled,
+                youtube_video.position
+            ))
+            
+            result = cursor.fetchone()
+            if result:
+                youtube_video.id = result[0]
+                return youtube_video.id
+            else:
+                logger.error("Failed to retrieve ID of newly inserted YouTube video")
+                return None
+                
+    def update_youtube_video(self, youtube_video):
+        """Update an existing YouTube video.
+        
+        Args:
+            youtube_video: YouTubeVideo object to update
+        """
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+            UPDATE youtube_videos
+            SET url = %s, title = %s, enabled = %s, position = %s
+            WHERE id = %s
+            ''', (
+                youtube_video.url,
+                youtube_video.title,
+                youtube_video.enabled,
+                youtube_video.position,
+                youtube_video.id
+            ))
+            
+    def delete_youtube_video(self, video_id):
+        """Delete a YouTube video.
+        
+        Args:
+            video_id: ID of the YouTube video to delete
+        """
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM youtube_videos WHERE id = %s', (video_id,))
+            
+    def get_youtube_video(self, video_id):
+        """Get a YouTube video by ID.
+        
+        Args:
+            video_id: ID of the YouTube video to get
+        
+        Returns:
+            YouTubeVideo object or None
+        """
+        with _get_db_connection() as conn:
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            dict_cursor.execute('SELECT * FROM youtube_videos WHERE id = %s', (video_id,))
+            row = dict_cursor.fetchone()
+            
+            if row:
+                return self._row_to_youtube_video(row)
+            else:
+                return None
+                
+    def get_all_youtube_videos(self):
+        """Get all YouTube videos.
+        
+        Returns:
+            List of YouTubeVideo objects
+        """
+        with _get_db_connection() as conn:
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            dict_cursor.execute('SELECT * FROM youtube_videos ORDER BY position')
+            rows = dict_cursor.fetchall()
+            
+            return [self._row_to_youtube_video(row) for row in rows]
+            
+    def get_enabled_youtube_videos(self):
+        """Get all enabled YouTube videos.
+        
+        Returns:
+            List of enabled YouTubeVideo objects
+        """
+        with _get_db_connection() as conn:
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            dict_cursor.execute('SELECT * FROM youtube_videos WHERE enabled = TRUE ORDER BY position')
+            rows = dict_cursor.fetchall()
+            
+            return [self._row_to_youtube_video(row) for row in rows]
+            
+    def reorder_youtube_videos(self, video_ids):
+        """Reorder YouTube videos.
+        
+        Args:
+            video_ids: List of video IDs in the desired order
+        """
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Update positions in a transaction
+            for position, video_id in enumerate(video_ids):
+                cursor.execute('''
+                UPDATE youtube_videos
+                SET position = %s
+                WHERE id = %s
+                ''', (position, video_id))
+                
+    def _row_to_youtube_video(self, row):
+        """Convert a database row to a YouTubeVideo object.
+        
+        Args:
+            row: Database row
+        
+        Returns:
+            YouTubeVideo object
+        """
+        from models import YouTubeVideo
+        
+        video = YouTubeVideo()
+        
+        # Check if row is None before proceeding
+        if row is None:
+            return video
+            
+        video.id = row['id']
+        video.url = row['url']
+        video.title = row['title']
+        video.enabled = row['enabled']
+        video.position = row['position']
+        video.created_at = row.get('created_at')
+        
+        return video
