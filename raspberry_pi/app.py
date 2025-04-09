@@ -1105,8 +1105,20 @@ if __name__ == '__main__':
     # Give schedulers time to initialize
     time.sleep(2)
     
-    # Debug info about host and port
-    logger.info("Starting Flask app on host='0.0.0.0', port=5000")
+    # SSL Certificate paths
+    cert_path = '/tmp/ssl/raspberrypi.crt'
+    key_path = '/tmp/ssl/raspberrypi.key'
     
-    # Start Flask app
-    app.run(host='0.0.0.0', port=5000, threaded=True, debug=False)
+    # Check if SSL certificates exist, use them if available
+    if os.path.exists(cert_path) and os.path.exists(key_path):
+        # Debug info about host and port with SSL
+        logger.info("Starting Flask app with SSL on host='0.0.0.0', port=5000")
+        # Start Flask app with SSL
+        app.run(host='0.0.0.0', port=5000, threaded=True, debug=False, 
+                ssl_context=(cert_path, key_path))
+    else:
+        # Debug info about host and port without SSL
+        logger.info("SSL certificates not found, starting Flask app without SSL on host='0.0.0.0', port=5000")
+        logger.info("Push-to-Talk feature may not work without HTTPS")
+        # Start Flask app without SSL
+        app.run(host='0.0.0.0', port=5000, threaded=True, debug=False)

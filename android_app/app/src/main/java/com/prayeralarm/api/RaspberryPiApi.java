@@ -16,10 +16,18 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Locale;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 public class RaspberryPiApi {
 
@@ -27,31 +35,86 @@ public class RaspberryPiApi {
     private String serverIp;
     private int serverPort;
     private Context context;
+    private boolean useHttps;
 
     public RaspberryPiApi(Context context) {
         this.context = context;
         SharedPreferences prefs = context.getSharedPreferences("PrayerAlarmPrefs", Context.MODE_PRIVATE);
         this.serverIp = prefs.getString("server_ip", "192.168.1.100");
         this.serverPort = prefs.getInt("server_port", 5000);
+        this.useHttps = prefs.getBoolean("use_https", true); // Default to HTTPS
     }
 
-    public RaspberryPiApi(String serverIp, int serverPort) {
+    public RaspberryPiApi(String serverIp, int serverPort, boolean useHttps) {
         this.serverIp = serverIp;
         this.serverPort = serverPort;
+        this.useHttps = useHttps;
+    }
+    
+    public RaspberryPiApi(String serverIp, int serverPort) {
+        this(serverIp, serverPort, true); // Default to HTTPS
     }
 
     public String getBaseUrl() {
-        return "http://" + serverIp + ":" + serverPort;
+        return (useHttps ? "https://" : "http://") + serverIp + ":" + serverPort;
     }
 
     public String getWebSocketUrl() {
-        return "ws://" + serverIp + ":" + serverPort + "/ws";
+        return (useHttps ? "wss://" : "ws://") + serverIp + ":" + serverPort + "/ws";
+    }
+    
+    /**
+     * Configures the connection to trust all certificates when using HTTPS.
+     * This is necessary for self-signed certificates.
+     * 
+     * @param connection The HTTP URL connection to configure
+     */
+    private void configureTrustAllCertificates(HttpURLConnection connection) {
+        if (useHttps && connection instanceof HttpsURLConnection) {
+            try {
+                HttpsURLConnection httpsConnection = (HttpsURLConnection) connection;
+                
+                // Create a trust manager that does not validate certificate chains
+                TrustManager[] trustAllCerts = new TrustManager[] {
+                    new X509TrustManager() {
+                        public X509Certificate[] getAcceptedIssuers() {
+                            return null;
+                        }
+                        
+                        public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                            // Do nothing - trust everything
+                        }
+                        
+                        public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                            // Do nothing - trust everything
+                        }
+                    }
+                };
+                
+                // Create SSL context with custom trust manager
+                SSLContext sc = SSLContext.getInstance("TLS");
+                sc.init(null, trustAllCerts, new SecureRandom());
+                httpsConnection.setSSLSocketFactory(sc.getSocketFactory());
+                
+                // Create hostname verifier that accepts all hostnames
+                HostnameVerifier allHostsValid = new HostnameVerifier() {
+                    public boolean verify(String hostname, SSLSession session) {
+                        return true;
+                    }
+                };
+                
+                httpsConnection.setHostnameVerifier(allHostsValid);
+            } catch (Exception e) {
+                Log.e(TAG, "Error configuring HTTPS connection: " + e.getMessage());
+            }
+        }
     }
 
     public boolean checkConnection() {
         try {
             URL url = new URL(getBaseUrl() + "/status");
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            configureTrustAllCertificates(connection);
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(5000);
             
@@ -67,6 +130,7 @@ public class RaspberryPiApi {
         try {
             URL url = new URL(getBaseUrl() + "/alarms");
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            configureTrustAllCertificates(connection);
             connection.setRequestMethod("POST");
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setDoOutput(true);
@@ -142,6 +206,7 @@ public class RaspberryPiApi {
         try {
             URL url = new URL(getBaseUrl() + "/alarms/" + alarmId + "/disable");
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            configureTrustAllCertificates(connection);
             connection.setRequestMethod("POST");
             
             int responseCode = connection.getResponseCode();
@@ -156,6 +221,7 @@ public class RaspberryPiApi {
         try {
             URL url = new URL(getBaseUrl() + "/alarms/" + alarmId);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            configureTrustAllCertificates(connection);
             connection.setRequestMethod("DELETE");
             
             int responseCode = connection.getResponseCode();
@@ -181,6 +247,7 @@ public class RaspberryPiApi {
         try {
             URL url = new URL(getBaseUrl() + "/murattal/files");
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            configureTrustAllCertificates(connection);
             connection.setRequestMethod("GET");
             
             int responseCode = connection.getResponseCode();
@@ -210,6 +277,7 @@ public class RaspberryPiApi {
         try {
             URL url = new URL(getBaseUrl() + "/murattal/play");
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            configureTrustAllCertificates(connection);
             connection.setRequestMethod("POST");
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setDoOutput(true);
@@ -234,6 +302,7 @@ public class RaspberryPiApi {
         try {
             URL url = new URL(getBaseUrl() + "/murattal/upload");
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            configureTrustAllCertificates(connection);
             connection.setRequestMethod("POST");
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setDoOutput(true);
@@ -272,6 +341,7 @@ public class RaspberryPiApi {
         try {
             URL url = new URL(getBaseUrl() + "/stop-audio");
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            configureTrustAllCertificates(connection);
             connection.setRequestMethod("POST");
             
             int responseCode = connection.getResponseCode();

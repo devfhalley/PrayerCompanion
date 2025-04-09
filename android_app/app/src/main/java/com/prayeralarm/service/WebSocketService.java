@@ -6,7 +6,15 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 public class WebSocketService {
 
@@ -20,6 +28,7 @@ public class WebSocketService {
     private int reconnectAttempts = 0;
     private static final int MAX_RECONNECT_ATTEMPTS = 5;
     private static final int RECONNECT_DELAY_MS = 3000; // 3 seconds
+    private boolean useSecureConnection = false;
 
     public interface OnConnectedListener {
         void onConnected();
@@ -35,6 +44,8 @@ public class WebSocketService {
 
     public WebSocketService(String serverUrl) {
         this.serverUrl = serverUrl;
+        // Check if the URL starts with "wss:" for secure WebSocket
+        this.useSecureConnection = serverUrl.toLowerCase().startsWith("wss:");
     }
 
     public void connect(OnConnectedListener onConnected, OnDisconnectedListener onDisconnected, OnErrorListener onError) {
@@ -95,6 +106,17 @@ public class WebSocketService {
                 }
             };
             
+            // For secure connections (WSS), configure SSL socket factory to trust all certificates
+            if (useSecureConnection) {
+                SSLSocketFactory sslSocketFactory = createTrustAllSSLSocketFactory();
+                if (sslSocketFactory != null) {
+                    webSocketClient.setSocketFactory(sslSocketFactory);
+                    Log.i(TAG, "Configured WebSocket with trust-all SSL socket factory");
+                } else {
+                    Log.e(TAG, "Failed to create SSL socket factory");
+                }
+            }
+            
             webSocketClient.connect();
         } catch (Exception e) {
             Log.e(TAG, "Error creating WebSocket: " + e.getMessage());
@@ -133,5 +155,42 @@ public class WebSocketService {
 
     public boolean isConnected() {
         return isConnected;
+    }
+    
+    /**
+     * Creates an SSL socket factory that trusts all certificates.
+     * This is necessary for self-signed certificates used in development environments.
+     * 
+     * @return SSLSocketFactory that trusts all certificates
+     */
+    private SSLSocketFactory createTrustAllSSLSocketFactory() {
+        try {
+            // Create a trust manager that does not validate certificate chains
+            TrustManager[] trustAllCerts = new TrustManager[] {
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[0];
+                    }
+                    
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                        // Trust all client certificates
+                    }
+                    
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                        // Trust all server certificates
+                    }
+                }
+            };
+            
+            // Install the all-trusting trust manager
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustAllCerts, new SecureRandom());
+            
+            // Create an SSL socket factory with our all-trusting manager
+            return sslContext.getSocketFactory();
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+            Log.e(TAG, "Error creating SSL socket factory: " + e.getMessage());
+            return null;
+        }
     }
 }
