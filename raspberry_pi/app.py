@@ -435,6 +435,155 @@ def get_alarm(alarm_id):
         else:
             return jsonify({"status": "error", "message": f"No alarm found with ID {alarm_id}"}), 404
 
+@app.route('/alarms/<int:alarm_id>', methods=['PUT'])
+def update_alarm(alarm_id):
+    """Update an existing alarm."""
+    # Check if the alarm exists first
+    db = get_db()
+    existing_alarm = db.get_alarm(alarm_id)
+    
+    if not existing_alarm:
+        return jsonify({"status": "error", "message": f"No alarm found with ID {alarm_id}"}), 404
+    
+    # Define a background thread function for processing the alarm update
+    def process_alarm_update(data, alarm_id):
+        try:
+            logger.info(f"Processing alarm update for ID {alarm_id}, data: {data}")
+            db = get_db()
+            alarm = db.get_alarm(alarm_id)
+            
+            if not alarm:
+                logger.error(f"Alarm {alarm_id} not found in background update task")
+                return
+            
+            # Process sound file if provided
+            sound_file_name = data.get('sound_file_name')
+            sound_file_content = data.get('sound_file_content')
+            
+            if sound_file_name and sound_file_content:
+                # Create sounds directory if it doesn't exist
+                sounds_dir = os.path.join(os.path.dirname(__file__), "sounds")
+                os.makedirs(sounds_dir, exist_ok=True)
+                
+                # Save the file
+                import base64
+                file_path = os.path.join(sounds_dir, sound_file_name)
+                with open(file_path, 'wb') as f:
+                    f.write(base64.b64decode(sound_file_content))
+                data['sound_path'] = file_path
+            
+            # Handle the case where we get 'time' like "13:04" instead of separate hour and minute
+            if 'time' in data and ':' in str(data['time']):
+                try:
+                    time_parts = data['time'].split(':')
+                    data['hour'] = int(time_parts[0])
+                    data['minute'] = int(time_parts[1])
+                    logger.info(f"Converted time string '{data['time']}' to hour={data['hour']}, minute={data['minute']}")
+                except Exception as e:
+                    logger.error(f"Error converting time string: {e}")
+            
+            # Create timestamp from hour and minute if provided
+            if 'hour' in data and 'minute' in data:
+                # Create a new datetime with the specified hour and minute
+                import calendar
+                from datetime import datetime, time as dt_time
+                
+                # Start with current date
+                now = datetime.now()
+                
+                # If a date is specified, use it
+                if 'date' in data and data['date']:
+                    try:
+                        # Parse the date string (expected format: YYYY-MM-DD)
+                        date_obj = datetime.strptime(data['date'], "%Y-%m-%d").date()
+                        # Combine with the current date
+                        now = datetime.combine(date_obj, now.time())
+                    except Exception as e:
+                        logger.error(f"Error parsing date string: {e}")
+                
+                # Create a datetime with the specified hour and minute
+                alarm_time = dt_time(hour=int(data['hour']), minute=int(data['minute']))
+                alarm_datetime = datetime.combine(now.date(), alarm_time)
+                
+                # Convert to milliseconds timestamp
+                timestamp = int(calendar.timegm(alarm_datetime.timetuple()) * 1000)
+                data['time'] = timestamp
+            
+            # Handle repeating vs one-time alarms
+            if 'repeating' in data:
+                repeating = data['repeating'] in [True, 'true', 1]
+                data['repeating'] = repeating
+                
+                if repeating:
+                    # For repeating alarms, ensure we have days data
+                    if 'days' not in data or not any(data['days']):
+                        # Set today's weekday if no days selected
+                        from datetime import datetime
+                        today_weekday = datetime.now().weekday()
+                        sunday_based_weekday = (today_weekday + 1) % 7  # Convert to Sunday-based
+                        data['days'] = [False] * 7
+                        data['days'][sunday_based_weekday] = True
+                else:
+                    # For one-time alarms, we don't set any days
+                    data['days'] = [False] * 7
+            
+            # Update the alarm with the new data
+            alarm.from_dict(data)
+            
+            # Log the label value before saving
+            label_value = data.get('label')
+            if label_value:
+                logger.info(f"Label value before saving: {label_value}")
+            
+            # Save the alarm
+            db.update_alarm(alarm)
+            logger.info(f"Alarm {alarm_id} updated in database")
+            
+            # Direct SQL update for label field to ensure it's saved correctly
+            if label_value:
+                try:
+                    import psycopg2
+                    conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE alarms SET label = %s WHERE id = %s", (label_value, alarm_id))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                    logger.info(f"Direct SQL update: Set label to '{label_value}' for alarm {alarm_id}")
+                except Exception as e:
+                    logger.error(f"Error updating label with direct SQL: {e}")
+            
+            # Get the updated alarm to verify changes
+            updated_alarm = db.get_alarm(alarm_id)
+            if updated_alarm:
+                logger.info(f"Saved alarm retrieved from database: {updated_alarm.to_dict()}")
+            
+            # Update the scheduler
+            # Use the global alarm_scheduler instance
+            alarm_scheduler.schedule_alarm(alarm)
+            
+            logger.info(f"Alarm {alarm_id} updated in background thread")
+            
+        except Exception as e:
+            logger.error(f"Error updating alarm in background thread: {e}")
+    
+    # Get the request data
+    data = request.get_json()
+    
+    # Set alarm_id for update mode
+    data['id'] = alarm_id
+    
+    # Start a background thread to process the alarm update
+    logger.info(f"Alarm update started in background thread")
+    threading.Thread(target=process_alarm_update, args=(data, alarm_id)).start()
+    
+    # Return a 202 Accepted response
+    return jsonify({
+        "status": "success",
+        "message": "Alarm update started",
+        "alarm_id": alarm_id
+    }), 202
+
 @app.route('/alarms/<int:alarm_id>', methods=['DELETE'])
 def delete_alarm(alarm_id):
     """Delete an alarm."""
@@ -510,6 +659,7 @@ def test_adhan():
     prayer_name = data.get('prayer_name', 'Test')
     
     # Send WebSocket notification
+    from datetime import datetime
     notification = {
         "type": "adhan_playing",
         "prayer": prayer_name if prayer_name else "Test",
@@ -616,6 +766,7 @@ def set_adhan_for_prayer():
         
         # Get the prayer time for today or specified date
         if not date_str:
+            from datetime import datetime
             date_str = datetime.now().strftime("%Y-%m-%d")
         
         prayer_times = db.get_prayer_times_by_date(date_str)
@@ -699,6 +850,19 @@ def web_alarms():
 def web_add_alarm():
     """Web interface add alarm page."""
     return render_template('add_alarm.html')
+
+@app.route('/web/alarms/edit/<int:alarm_id>', methods=['GET'])
+def web_edit_alarm(alarm_id):
+    """Web interface edit alarm page."""
+    # Check if the alarm exists
+    db = get_db()
+    alarm = db.get_alarm(alarm_id)
+    if not alarm:
+        # Flash an error message and redirect to the alarms page
+        # For now, just redirect to alarms page
+        return redirect(url_for('web_alarms'))
+    
+    return render_template('edit_alarm.html', alarm_id=alarm_id)
 
 @app.route('/web/push-to-talk', methods=['GET'])
 def web_push_to_talk():

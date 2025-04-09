@@ -131,6 +131,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <td>${alarm.enabled ? 'Enabled' : 'Disabled'}</td>
                             <td>${repeatText}</td>
                             <td>
+                                <a href="/web/alarms/edit/${alarm.id}" class="btn btn-sm btn-primary edit-alarm">
+                                    <i class="fas fa-edit"></i>
+                                </a>
                                 <button class="btn btn-sm btn-danger delete-alarm" data-id="${alarm.id}">
                                     <i class="fas fa-trash"></i>
                                 </button>

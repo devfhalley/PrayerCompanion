@@ -1,0 +1,282 @@
+[
+  {
+    "id": 71,
+    "name": "Fajr",
+    "time": "2025-04-08T04:37:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 72,
+    "name": "Dhuhr",
+    "time": "2025-04-08T11:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 73,
+    "name": "Asr",
+    "time": "2025-04-08T15:13:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 74,
+    "name": "Maghrib",
+    "time": "2025-04-08T17:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 75,
+    "name": "Isha",
+    "time": "2025-04-08T19:04:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 76,
+    "name": "Fajr",
+    "time": "2025-04-09T04:37:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 77,
+    "name": "Dhuhr",
+    "time": "2025-04-09T11:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 78,
+    "name": "Asr",
+    "time": "2025-04-09T15:13:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 79,
+    "name": "Maghrib",
+    "time": "2025-04-09T17:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 80,
+    "name": "Isha",
+    "time": "2025-04-09T19:04:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 81,
+    "name": "Fajr",
+    "time": "2025-04-10T04:37:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 82,
+    "name": "Dhuhr",
+    "time": "2025-04-10T11:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 83,
+    "name": "Asr",
+    "time": "2025-04-10T15:13:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 84,
+    "name": "Maghrib",
+    "time": "2025-04-10T17:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 85,
+    "name": "Isha",
+    "time": "2025-04-10T19:04:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 86,
+    "name": "Fajr",
+    "time": "2025-04-11T04:37:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 87,
+    "name": "Dhuhr",
+    "time": "2025-04-11T11:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 88,
+    "name": "Asr",
+    "time": "2025-04-11T15:13:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 89,
+    "name": "Maghrib",
+    "time": "2025-04-11T17:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 90,
+    "name": "Isha",
+    "time": "2025-04-11T19:04:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 91,
+    "name": "Fajr",
+    "time": "2025-04-12T04:37:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 92,
+    "name": "Dhuhr",
+    "time": "2025-04-12T11:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 93,
+    "name": "Asr",
+    "time": "2025-04-12T15:13:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 94,
+    "name": "Maghrib",
+    "time": "2025-04-12T17:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 95,
+    "name": "Isha",
+    "time": "2025-04-12T19:04:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 96,
+    "name": "Fajr",
+    "time": "2025-04-13T04:37:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 97,
+    "name": "Dhuhr",
+    "time": "2025-04-13T11:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 98,
+    "name": "Asr",
+    "time": "2025-04-13T15:13:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 99,
+    "name": "Maghrib",
+    "time": "2025-04-13T17:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 100,
+    "name": "Isha",
+    "time": "2025-04-13T19:04:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 101,
+    "name": "Fajr",
+    "time": "2025-04-14T04:37:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 102,
+    "name": "Dhuhr",
+    "time": "2025-04-14T11:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 103,
+    "name": "Asr",
+    "time": "2025-04-14T15:13:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 104,
+    "name": "Maghrib",
+    "time": "2025-04-14T17:55:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 105,
+    "name": "Isha",
+    "time": "2025-04-14T19:04:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 106,
+    "name": "Fajr",
+    "time": "2025-04-15T04:37:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 107,
+    "name": "Dhuhr",
+    "time": "2025-04-15T11:54:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 108,
+    "name": "Asr",
+    "time": "2025-04-15T15:13:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 109,
+    "name": "Maghrib",
+    "time": "2025-04-15T17:54:00",
+    "enabled": 1,
+    "custom_sound": null
+  },
+  {
+    "id": 110,
+    "name": "Isha",
+    "time": "2025-04-15T19:04:00",
+    "enabled": 1,
+    "custom_sound": null
+  }
+]

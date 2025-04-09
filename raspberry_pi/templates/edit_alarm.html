@@ -1,0 +1,399 @@
+{% extends "layout.html" %}
+
+{% block title %}Edit Alarm - Prayer Alarm System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Edit Alarm</h2>
+        <a href="{{ url_for('web_alarms') }}" class="btn btn-secondary">Back to Alarms</a>
+    </div>
+    
+    <form id="edit-alarm-form" data-api-url="/alarms/{{ alarm_id }}" data-api-method="PUT" data-redirect="/web/alarms">
+        <div class="form-group">
+            <label for="alarm-time">Time</label>
+            <input type="time" id="alarm-time" name="time" class="form-control" required>
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="alarm-repeating" name="repeating"> 
+                Repeating Alarm
+            </label>
+        </div>
+        
+        <div id="repeat-days" style="display: none;">
+            <div class="form-group">
+                <label>Repeat on:</label>
+                <div class="days-selector">
+                    <label><input type="checkbox" name="days[0]"> Sunday</label>
+                    <label><input type="checkbox" name="days[1]"> Monday</label>
+                    <label><input type="checkbox" name="days[2]"> Tuesday</label>
+                    <label><input type="checkbox" name="days[3]"> Wednesday</label>
+                    <label><input type="checkbox" name="days[4]"> Thursday</label>
+                    <label><input type="checkbox" name="days[5]"> Friday</label>
+                    <label><input type="checkbox" name="days[6]"> Saturday</label>
+                </div>
+            </div>
+        </div>
+        
+        <div id="one-time-date" class="form-group">
+            <label for="alarm-date">Date</label>
+            <input type="date" id="alarm-date" name="date" class="form-control" required>
+        </div>
+        
+        <div class="form-group">
+            <label>Alarm Sound</label>
+            <div>
+                <label>
+                    <input type="radio" name="is_tts" value="false" checked> 
+                    Default Sound
+                </label>
+                <label>
+                    <input type="radio" name="is_tts" value="true"> 
+                    Text-to-Speech
+                </label>
+            </div>
+        </div>
+        
+        <div id="tts-message" class="form-group" style="display: none;">
+            <label for="alarm-message">Message</label>
+            <textarea id="alarm-message" name="message" class="form-control" rows="3"></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="alarm-label">Label</label>
+            <input type="text" id="alarm-label" name="label" class="form-control" placeholder="Optional label for this alarm">
+            <small class="form-text text-muted">This label will be displayed when the alarm rings</small>
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="alarm-enabled" name="enabled" checked> 
+                Enable Alarm
+            </label>
+        </div>
+        
+        <div class="form-group">
+            <button type="submit" id="submit-button" class="btn">Update Alarm</button>
+            <div id="submit-spinner" class="spinner" style="display: none;">
+                <div class="spinner-border" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+                <span>Processing...</span>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const alarmRepeating = document.getElementById('alarm-repeating');
+    const repeatDays = document.getElementById('repeat-days');
+    const oneTimeDate = document.getElementById('one-time-date');
+    
+    const isTtsRadios = document.querySelectorAll('input[name="is_tts"]');
+    const ttsMessage = document.getElementById('tts-message');
+    const alarmId = '{{ alarm_id }}';
+    
+    // Set date input to today initially
+    document.getElementById('alarm-date').value = formatDateYMD(new Date());
+    
+    // Toggle repeating options
+    alarmRepeating.addEventListener('change', function() {
+        if (this.checked) {
+            repeatDays.style.display = 'block';
+            oneTimeDate.style.display = 'none';
+        } else {
+            repeatDays.style.display = 'none';
+            oneTimeDate.style.display = 'block';
+        }
+    });
+    
+    // Toggle TTS message field
+    isTtsRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'true') {
+                ttsMessage.style.display = 'block';
+            } else {
+                ttsMessage.style.display = 'none';
+            }
+        });
+    });
+    
+    // Load alarm data
+    async function loadAlarmData() {
+        try {
+            console.log('Loading alarm data for ID:', alarmId);
+            const timestamp = new Date().getTime();
+            const response = await fetch(`/alarms/${alarmId}?t=${timestamp}`, {
+                method: 'GET',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
+            const alarm = await response.json();
+            console.log('Received alarm data:', alarm);
+            
+            // Fill form fields with alarm data
+            // Time
+            if (alarm.time_str) {
+                document.getElementById('alarm-time').value = alarm.time_str;
+            } else if (alarm.time) {
+                // Convert timestamp to time string
+                const date = new Date(alarm.time);
+                if (!isNaN(date.getTime())) {
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    document.getElementById('alarm-time').value = `${hours}:${minutes}`;
+                }
+            }
+            
+            // Repeating
+            const isRepeating = alarm.repeating === true;
+            document.getElementById('alarm-repeating').checked = isRepeating;
+            
+            // Show/hide days or date based on repeating status
+            if (isRepeating) {
+                repeatDays.style.display = 'block';
+                oneTimeDate.style.display = 'none';
+                
+                // Set days
+                if (Array.isArray(alarm.days)) {
+                    alarm.days.forEach((enabled, index) => {
+                        document.querySelector(`input[name="days[${index}]"]`).checked = enabled;
+                    });
+                }
+            } else {
+                repeatDays.style.display = 'none';
+                oneTimeDate.style.display = 'block';
+                
+                // Set date
+                if (alarm.date_str) {
+                    document.getElementById('alarm-date').value = alarm.date_str;
+                }
+            }
+            
+            // Text to speech
+            const isTts = alarm.is_tts === true;
+            document.querySelector(`input[name="is_tts"][value="${isTts}"]`).checked = true;
+            
+            if (isTts) {
+                ttsMessage.style.display = 'block';
+                if (alarm.message) {
+                    document.getElementById('alarm-message').value = alarm.message;
+                }
+            } else {
+                ttsMessage.style.display = 'none';
+            }
+            
+            // Label
+            if (alarm.label) {
+                document.getElementById('alarm-label').value = alarm.label;
+            }
+            
+            // Enabled
+            document.getElementById('alarm-enabled').checked = alarm.enabled === true;
+            
+        } catch (error) {
+            console.error('Error loading alarm data:', error);
+            showNotification('Error loading alarm data: ' + error.message, 'error');
+        }
+    }
+    
+    // Load alarm data when the page loads
+    loadAlarmData();
+    
+    // Custom submission handling
+    const form = document.getElementById('edit-alarm-form');
+    const submitButton = document.getElementById('submit-button');
+    const submitSpinner = document.getElementById('submit-spinner');
+    let isSubmitting = false;
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Prevent double submissions
+        if (isSubmitting) {
+            console.log('Form already submitting - preventing double submission');
+            return;
+        }
+        
+        // Show loading state
+        isSubmitting = true;
+        submitButton.disabled = true;
+        submitButton.style.opacity = '0.7';
+        submitSpinner.style.display = 'flex';
+        
+        // Display a loading overlay to prevent user interaction
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'loading-overlay';
+        loadingOverlay.style.position = 'fixed';
+        loadingOverlay.style.top = '0';
+        loadingOverlay.style.left = '0';
+        loadingOverlay.style.width = '100vw';
+        loadingOverlay.style.height = '100vh';
+        loadingOverlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        loadingOverlay.style.zIndex = '9999';
+        loadingOverlay.style.display = 'flex';
+        loadingOverlay.style.justifyContent = 'center';
+        loadingOverlay.style.alignItems = 'center';
+        loadingOverlay.innerHTML = '<div class="spinner-border text-light" role="status"><span class="visually-hidden">Loading...</span></div>';
+        document.body.appendChild(loadingOverlay);
+        
+        // Gather all the data
+        const alarmTime = document.getElementById('alarm-time').value;
+        const [hours, minutes] = alarmTime.split(':').map(Number);
+        
+        const isRepeating = document.getElementById('alarm-repeating').checked;
+        const isEnabled = document.getElementById('alarm-enabled').checked;
+        const isTts = document.querySelector('input[name="is_tts"]:checked').value === 'true';
+        
+        // Construct data object - start with basic properties that apply to all alarms
+        const data = {
+            hour: hours,
+            minute: minutes,
+            enabled: isEnabled,
+            is_tts: isTts,
+            label: document.getElementById('alarm-label').value
+        };
+        
+        // Only set repeating property for repeating alarms
+        if (isRepeating) {
+            data.repeating = true;
+            
+            // Get selected days
+            const days = [];
+            for (let i = 0; i < 7; i++) {
+                days.push(document.querySelector(`input[name="days[${i}]"]`).checked);
+            }
+            data.days = days;
+            
+            // Validate: at least one day must be selected for repeating alarms
+            if (!days.some(day => day)) {
+                showNotification('Please select at least one day for repeating alarm', 'error');
+                resetSubmitButton();
+                return;
+            }
+            
+            // For repeating alarms, we don't need a date
+            delete data.date;
+        } else {
+            // For one-time alarms, explicitly set repeating to false
+            data.repeating = false;
+            
+            // Get date for one-time alarm
+            const alarmDate = document.getElementById('alarm-date').value;
+            data.date = alarmDate;
+            
+            // Validate date (must be today or in future)
+            const selectedDate = new Date(alarmDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            if (selectedDate < today) {
+                showNotification('Please select today or a future date', 'error');
+                resetSubmitButton();
+                return;
+            }
+            
+            // For one-time alarms, we don't set any days
+            delete data.days;
+        }
+        
+        if (isTts) {
+            // Get TTS message
+            const message = document.getElementById('alarm-message').value;
+            if (!message.trim()) {
+                showNotification('Please enter a message for text-to-speech', 'error');
+                resetSubmitButton();
+                return;
+            }
+            data.message = message;
+        }
+        
+        try {
+            console.log('Sending updated alarm data:', data);
+            const response = await fetch(`/alarms/${alarmId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            // Check if the response is OK
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            console.log('Server response:', result);
+            
+            if (result.status === 'success') {
+                showNotification(result.message || 'Alarm updated successfully');
+                
+                // If response is 202 Accepted, wait for a moment to let background operation complete
+                if (response.status === 202) {
+                    console.log('Alarm operation started in background, waiting briefly before redirecting...');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                // Force redirect to alarms page with a timestamp to prevent caching
+                const timestamp = new Date().getTime();
+                const random = Math.floor(Math.random() * 1000000);
+                console.log('Redirecting to alarms page...');
+                
+                // Remove loading overlay if it exists
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.remove();
+                }
+                
+                // Use setTimeout to ensure the notification is shown before redirecting
+                setTimeout(() => {
+                    try {
+                        // Use location.replace to force a complete page refresh without using browser history
+                        window.location.replace(`/web/alarms?t=${timestamp}&r=${random}`);
+                    } catch (e) {
+                        console.error('Error during redirect:', e);
+                        // Fallback redirect method
+                        window.location.href = `/web/alarms?t=${timestamp}&r=${random}`;
+                    }
+                }, 1500);
+            } else {
+                throw new Error(result.message || 'Unknown error when updating alarm');
+            }
+        } catch (error) {
+            console.error('Error updating alarm:', error);
+            showNotification('Error updating alarm: ' + error.message, 'error');
+            resetSubmitButton();
+            
+            // Remove loading overlay if it exists
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.remove();
+            }
+        }
+    });
+    
+    // Function to reset the submit button state
+    function resetSubmitButton() {
+        isSubmitting = false;
+        submitButton.disabled = false;
+        submitButton.style.opacity = '1';
+        submitSpinner.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}
