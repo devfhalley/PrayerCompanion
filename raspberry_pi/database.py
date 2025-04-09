@@ -93,8 +93,10 @@ def _get_db_connection():
 def get_db():
     """Get the database wrapper."""
     init_db()  # Make sure database is initialized
+    from database_pg import DatabaseWrapper
     return DatabaseWrapper()
 
+# This class is kept for backward compatibility but should be replaced with the one from database_pg.py
 class DatabaseWrapper:
     """Wrapper class for database operations."""
     

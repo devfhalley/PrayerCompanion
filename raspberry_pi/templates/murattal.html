@@ -16,9 +16,25 @@
             <input type="file" id="file-input" style="display: none;" accept="audio/mpeg">
         </div>
         
-        <div class="card-header">
+        <!-- Professional player interface -->
+        <div class="murattal-player-section">
+            <div class="murattal-player-header">
+                <h3>Now Playing</h3>
+            </div>
+            <div class="murattal-player">
+                <div class="murattal-title" id="now-playing-title">Select a murattal to play</div>
+                <div class="murattal-controls">
+                    <button id="prev-button" class="player-btn" disabled><i class="fas fa-step-backward"></i></button>
+                    <button id="play-button" class="player-btn primary-btn" disabled><i class="fas fa-play"></i></button>
+                    <button id="pause-button" class="player-btn" disabled><i class="fas fa-pause"></i></button>
+                    <button id="stop-button" class="player-btn"><i class="fas fa-stop"></i></button>
+                    <button id="next-button" class="player-btn" disabled><i class="fas fa-step-forward"></i></button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card-header murattal-list-header">
             <h2>Available Murattal Files</h2>
-            <button id="stop-button" class="btn btn-danger">Stop Playback</button>
         </div>
         
         <ul class="murattal-list" id="murattal-list">
@@ -35,6 +51,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('file-input');
     const murattalList = document.getElementById('murattal-list');
     const stopButton = document.getElementById('stop-button');
+    const playButton = document.getElementById('play-button');
+    const pauseButton = document.getElementById('pause-button');
+    const prevButton = document.getElementById('prev-button');
+    const nextButton = document.getElementById('next-button');
+    const nowPlayingTitle = document.getElementById('now-playing-title');
+    
+    // Player state
+    const playerState = {
+        currentTrack: null,
+        playlist: [],
+        currentIndex: -1,
+        isPlaying: false,
+        isPaused: false,
+        audioStatus: null,
+        statusCheckInterval: null
+    };
+    
+    // Start audio status check interval
+    startStatusCheck();
     
     // Fetch Murattal files
     async function fetchMurattalFiles() {
@@ -44,31 +79,51 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (result.status === 'success') {
                 const files = result.files;
+                playerState.playlist = files;
                 
                 if (files.length > 0) {
                     let html = '';
-                    files.forEach(file => {
+                    files.forEach((file, index) => {
                         html += `
-                            <li class="murattal-item" data-path="${file.path}">
+                            <li class="murattal-item" data-path="${file.path}" data-index="${index}">
                                 <div>
                                     <i class="fas fa-play play-icon"></i>
                                     ${file.name}
                                 </div>
-                                <button class="btn btn-danger delete-btn" data-path="${file.path}">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <div class="murattal-item-actions">
+                                    <button class="btn btn-primary play-btn" data-path="${file.path}" data-index="${index}">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <button class="btn btn-danger delete-btn" data-path="${file.path}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
                             </li>
                         `;
                     });
                     murattalList.innerHTML = html;
                     
+                    // Enable prev/next buttons if there are files
+                    updatePlayerControls();
+                    
                     // Add click event to play files
                     document.querySelectorAll('.murattal-item').forEach(item => {
                         item.addEventListener('click', function(e) {
-                            if (e.target.closest('.delete-btn')) return; // Don't play if delete button was clicked
+                            if (e.target.closest('.delete-btn') || e.target.closest('.play-btn')) return; // Don't play if button was clicked
                             
                             const path = this.getAttribute('data-path');
-                            playMurattal(path);
+                            const index = parseInt(this.getAttribute('data-index'));
+                            selectTrack(index, path);
+                        });
+                    });
+                    
+                    // Add click event to play buttons
+                    document.querySelectorAll('.play-btn').forEach(button => {
+                        button.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const path = this.getAttribute('data-path');
+                            const index = parseInt(this.getAttribute('data-index'));
+                            selectAndPlayTrack(index, path);
                         });
                     });
                     
@@ -85,11 +140,189 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 } else {
                     murattalList.innerHTML = '<li>No Murattal files available</li>';
+                    updatePlayerControls();
                 }
             }
         } catch (error) {
             console.error('Error fetching Murattal files:', error);
             murattalList.innerHTML = '<li>Error loading Murattal files</li>';
+        }
+    }
+    
+    // Select a track without playing
+    function selectTrack(index, path) {
+        playerState.currentIndex = index;
+        playerState.currentTrack = playerState.playlist[index];
+        
+        // Highlight the current track in the list
+        document.querySelectorAll('.murattal-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        const selectedItem = document.querySelector(`.murattal-item[data-index="${index}"]`);
+        if (selectedItem) selectedItem.classList.add('active');
+        
+        // Update the now playing title
+        nowPlayingTitle.textContent = playerState.currentTrack.name;
+        
+        // Update player controls
+        updatePlayerControls();
+    }
+    
+    // Select and play a track
+    function selectAndPlayTrack(index, path) {
+        selectTrack(index, path);
+        playCurrentTrack();
+    }
+    
+    // Play the current track
+    function playCurrentTrack() {
+        if (!playerState.currentTrack) return;
+        
+        playMurattal(playerState.currentTrack.path);
+        playerState.isPlaying = true;
+        playerState.isPaused = false;
+        
+        // Create a sticky player if not already created
+        createStickyPlayer();
+        
+        // Update player controls
+        updatePlayerControls();
+    }
+    
+    // Play previous track
+    function playPreviousTrack() {
+        if (playerState.playlist.length === 0) return;
+        
+        let newIndex = playerState.currentIndex - 1;
+        if (newIndex < 0) newIndex = playerState.playlist.length - 1;
+        
+        selectAndPlayTrack(newIndex, playerState.playlist[newIndex].path);
+    }
+    
+    // Play next track
+    function playNextTrack() {
+        if (playerState.playlist.length === 0) return;
+        
+        let newIndex = playerState.currentIndex + 1;
+        if (newIndex >= playerState.playlist.length) newIndex = 0;
+        
+        selectAndPlayTrack(newIndex, playerState.playlist[newIndex].path);
+    }
+    
+    // Update player controls based on the current state
+    function updatePlayerControls() {
+        const hasPlaylist = playerState.playlist.length > 0;
+        const hasCurrentTrack = playerState.currentTrack !== null;
+        
+        // Enable/disable buttons based on state
+        nextButton.disabled = !hasPlaylist;
+        prevButton.disabled = !hasPlaylist;
+        playButton.disabled = !hasCurrentTrack;
+        pauseButton.disabled = !(hasCurrentTrack && playerState.isPlaying);
+        
+        // Update play/pause button states
+        if (playerState.isPlaying && !playerState.isPaused) {
+            playButton.classList.add('hidden');
+            pauseButton.classList.remove('hidden');
+        } else {
+            playButton.classList.remove('hidden');
+            pauseButton.classList.add('hidden');
+        }
+    }
+    
+    // Start checking audio status periodically
+    function startStatusCheck() {
+        if (playerState.statusCheckInterval) return;
+        
+        playerState.statusCheckInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                
+                const wasPlaying = playerState.isPlaying;
+                const wasPaused = playerState.isPaused;
+                
+                playerState.audioStatus = data.audio_status;
+                
+                // Update player state based on audio status
+                if (data.audio_status.is_playing && data.audio_status.type === 'murattal') {
+                    playerState.isPlaying = true;
+                    playerState.isPaused = false;
+                } else {
+                    playerState.isPlaying = false;
+                    playerState.isPaused = false;
+                }
+                
+                // If state changed, update controls
+                if (wasPlaying !== playerState.isPlaying || wasPaused !== playerState.isPaused) {
+                    updatePlayerControls();
+                    updateStickyPlayer();
+                }
+                
+            } catch (error) {
+                console.error('Error checking audio status:', error);
+            }
+        }, 1000);
+    }
+    
+    // Create a sticky player that stays at the bottom of the page
+    function createStickyPlayer() {
+        if (document.getElementById('sticky-player')) return;
+        
+        const stickyPlayer = document.createElement('div');
+        stickyPlayer.id = 'sticky-player';
+        stickyPlayer.className = 'sticky-player';
+        
+        stickyPlayer.innerHTML = `
+            <div class="sticky-player-inner">
+                <div class="sticky-player-title" id="sticky-player-title">
+                    ${playerState.currentTrack ? playerState.currentTrack.name : 'No track selected'}
+                </div>
+                <div class="sticky-player-controls">
+                    <button id="sticky-prev-button" class="player-btn"><i class="fas fa-step-backward"></i></button>
+                    <button id="sticky-play-button" class="player-btn primary-btn"><i class="fas fa-play"></i></button>
+                    <button id="sticky-pause-button" class="player-btn primary-btn hidden"><i class="fas fa-pause"></i></button>
+                    <button id="sticky-stop-button" class="player-btn"><i class="fas fa-stop"></i></button>
+                    <button id="sticky-next-button" class="player-btn"><i class="fas fa-step-forward"></i></button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(stickyPlayer);
+        
+        // Add event listeners to sticky player controls
+        document.getElementById('sticky-prev-button').addEventListener('click', playPreviousTrack);
+        document.getElementById('sticky-next-button').addEventListener('click', playNextTrack);
+        document.getElementById('sticky-play-button').addEventListener('click', playCurrentTrack);
+        document.getElementById('sticky-pause-button').addEventListener('click', pausePlayback);
+        document.getElementById('sticky-stop-button').addEventListener('click', stopPlayback);
+        
+        // Update sticky player state
+        updateStickyPlayer();
+    }
+    
+    // Update the sticky player state
+    function updateStickyPlayer() {
+        const stickyPlayer = document.getElementById('sticky-player');
+        if (!stickyPlayer) return;
+        
+        const stickyTitle = document.getElementById('sticky-player-title');
+        const stickyPlayButton = document.getElementById('sticky-play-button');
+        const stickyPauseButton = document.getElementById('sticky-pause-button');
+        
+        if (stickyTitle) {
+            stickyTitle.textContent = playerState.currentTrack ? playerState.currentTrack.name : 'No track selected';
+        }
+        
+        if (playerState.isPlaying && !playerState.isPaused) {
+            stickyPlayer.classList.add('playing');
+            stickyPlayButton.classList.add('hidden');
+            stickyPauseButton.classList.remove('hidden');
+        } else {
+            stickyPlayer.classList.remove('playing');
+            stickyPlayButton.classList.remove('hidden');
+            stickyPauseButton.classList.add('hidden');
         }
     }
     
@@ -108,6 +341,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (result.status === 'success') {
                 showNotification('Murattal playing');
+                playerState.isPlaying = true;
+                playerState.isPaused = false;
+                updatePlayerControls();
+                updateStickyPlayer();
             } else {
                 showNotification(result.message || 'Failed to play Murattal', 'error');
             }
@@ -117,19 +354,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Pause playback
+    async function pausePlayback() {
+        try {
+            // TODO: Implement pause functionality on the server
+            // For now, just stop playback
+            await stopPlayback();
+            playerState.isPaused = true;
+            showNotification('Playback paused');
+            updatePlayerControls();
+            updateStickyPlayer();
+        } catch (error) {
+            console.error('Error pausing playback:', error);
+        }
+    }
+    
     // Stop audio playback
-    stopButton.addEventListener('click', async function() {
+    async function stopPlayback() {
         try {
             const response = await fetch('/stop-audio', { method: 'POST' });
             const result = await response.json();
             
             if (result.status === 'success') {
                 showNotification('Audio stopped');
+                playerState.isPlaying = false;
+                playerState.isPaused = false;
+                updatePlayerControls();
+                updateStickyPlayer();
             }
         } catch (error) {
             console.error('Error stopping audio:', error);
         }
-    });
+    }
+    
+    // Add event listeners to player controls
+    playButton.addEventListener('click', playCurrentTrack);
+    pauseButton.addEventListener('click', pausePlayback);
+    stopButton.addEventListener('click', stopPlayback);
+    prevButton.addEventListener('click', playPreviousTrack);
+    nextButton.addEventListener('click', playNextTrack);
     
     // File upload handling
     uploadArea.addEventListener('click', function() {

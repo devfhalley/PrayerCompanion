@@ -749,7 +749,8 @@ class DatabaseWrapper:
             YouTubeVideo ID
         """
         with _get_db_connection() as conn:
-            cursor = conn.cursor()
+            # Use RealDictCursor to get column names
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
             cursor.execute('''
             INSERT INTO youtube_videos (url, title, enabled, position)
@@ -764,7 +765,7 @@ class DatabaseWrapper:
             
             result = cursor.fetchone()
             if result:
-                youtube_video.id = result[0]
+                youtube_video.id = result['id']
                 return youtube_video.id
             else:
                 logger.error("Failed to retrieve ID of newly inserted YouTube video")
@@ -777,7 +778,8 @@ class DatabaseWrapper:
             youtube_video: YouTubeVideo object to update
         """
         with _get_db_connection() as conn:
-            cursor = conn.cursor()
+            # Use RealDictCursor for consistency
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
             cursor.execute('''
             UPDATE youtube_videos
@@ -798,7 +800,8 @@ class DatabaseWrapper:
             video_id: ID of the YouTube video to delete
         """
         with _get_db_connection() as conn:
-            cursor = conn.cursor()
+            # Use RealDictCursor for consistency
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
             cursor.execute('DELETE FROM youtube_videos WHERE id = %s', (video_id,))
             
@@ -857,7 +860,8 @@ class DatabaseWrapper:
             video_ids: List of video IDs in the desired order
         """
         with _get_db_connection() as conn:
-            cursor = conn.cursor()
+            # Use RealDictCursor for consistency
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
             # Update positions in a transaction
             for position, video_id in enumerate(video_ids):
