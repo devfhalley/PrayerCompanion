@@ -200,26 +200,38 @@ def add_or_update_alarm():
 @app.route('/alarms/<int:alarm_id>', methods=['DELETE'])
 def delete_alarm(alarm_id):
     """Delete an alarm."""
+    # Create a background thread to process the deletion
+    def process_deletion(alarm_id):
+        try:
+            db = get_db()
+            # Remove from database
+            db.delete_alarm(alarm_id)
+            # Remove from scheduler
+            alarm_scheduler.remove_alarm(alarm_id)
+            app.logger.info(f"Alarm {alarm_id} deleted successfully in background thread")
+        except Exception as e:
+            app.logger.error(f"Error in background thread deleting alarm {alarm_id}: {str(e)}")
+    
     try:
         db = get_db()
-        # First check if alarm exists to avoid errors
+        # Quick check if alarm exists to avoid errors
         alarm = db.get_alarm(alarm_id)
         
         if not alarm:
             return jsonify({"status": "error", "message": f"Alarm with ID {alarm_id} not found"}), 404
             
-        # Remove from database first
-        db.delete_alarm(alarm_id)
+        # Start a background thread for the deletion
+        deletion_thread = threading.Thread(target=process_deletion, args=(alarm_id,))
+        deletion_thread.daemon = True
+        deletion_thread.start()
         
-        # Then remove from scheduler
-        alarm_scheduler.remove_alarm(alarm_id)
+        # Log the deletion request
+        app.logger.info(f"Deletion of alarm {alarm_id} started in background thread")
         
-        # Log the deletion for debugging
-        app.logger.info(f"Alarm {alarm_id} deleted successfully")
-        
-        return jsonify({"status": "success", "message": "Alarm deleted"})
+        # Return immediately - this prevents the browser from hanging
+        return jsonify({"status": "success", "message": "Alarm deletion started"}), 202
     except Exception as e:
-        app.logger.error(f"Error deleting alarm {alarm_id}: {str(e)}")
+        app.logger.error(f"Error initiating alarm deletion for {alarm_id}: {str(e)}")
         return jsonify({"status": "error", "message": f"Failed to delete alarm: {str(e)}"}), 500
 
 @app.route('/alarms/<int:alarm_id>/disable', methods=['POST'])
