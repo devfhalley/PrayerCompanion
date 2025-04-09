@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <thead>
                         <tr>
                             <th>Time</th>
+                            <th>Label</th>
                             <th>Status</th>
                             <th>Repeat</th>
                             <th>Actions</th>
@@ -126,6 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     html += `
                         <tr>
                             <td>${timeString}</td>
+                            <td>${alarm.label || '-'}</td>
                             <td>${alarm.enabled ? 'Enabled' : 'Disabled'}</td>
                             <td>${repeatText}</td>
                             <td>
@@ -285,7 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     // Update status cell
-                    const statusCell = alarmRow.querySelector('td:nth-child(2)');
+                    const statusCell = alarmRow.querySelector('td:nth-child(3)');
                     if (statusCell) {
                         statusCell.textContent = currentlyEnabled ? 'Disabled' : 'Enabled';
                     }

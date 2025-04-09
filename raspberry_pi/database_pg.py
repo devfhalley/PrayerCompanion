@@ -41,6 +41,21 @@ def init_db():
         )
         ''')
         
+        # Check if label column exists in alarms table
+        cursor.execute('''
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'alarms' AND column_name = 'label'
+        ''')
+        
+        if not cursor.fetchone():
+            # Add label column if it doesn't exist
+            logger.info("Adding 'label' column to alarms table")
+            cursor.execute('''
+            ALTER TABLE alarms
+            ADD COLUMN label TEXT
+            ''')
+        
         # Create prayer_times table
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS prayer_times (
@@ -114,8 +129,8 @@ class DatabaseWrapper:
             days_str = ''.join('1' if day else '0' for day in alarm.days)
             
             cursor.execute('''
-            INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             ''', (
                 alarm.time,
@@ -124,7 +139,8 @@ class DatabaseWrapper:
                 days_str,
                 alarm.is_tts,
                 alarm.message,
-                alarm.sound_path
+                alarm.sound_path,
+                alarm.label
             ))
             
             result = cursor.fetchone()
@@ -150,7 +166,7 @@ class DatabaseWrapper:
             
             cursor.execute('''
             UPDATE alarms
-            SET time = %s, enabled = %s, repeating = %s, days = %s, is_tts = %s, message = %s, sound_path = %s
+            SET time = %s, enabled = %s, repeating = %s, days = %s, is_tts = %s, message = %s, sound_path = %s, label = %s
             WHERE id = %s
             ''', (
                 alarm.time,
@@ -160,6 +176,7 @@ class DatabaseWrapper:
                 alarm.is_tts,
                 alarm.message,
                 alarm.sound_path,
+                alarm.label,
                 alarm.id
             ))
             
@@ -410,6 +427,10 @@ class DatabaseWrapper:
         alarm.is_tts = row['is_tts']
         alarm.message = row['message']
         alarm.sound_path = row['sound_path']
+        
+        # Check if label column exists in the row
+        if 'label' in row:
+            alarm.label = row['label']
         
         return alarm
     

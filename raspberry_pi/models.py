@@ -19,6 +19,7 @@ class Alarm:
         self.is_tts = False
         self.message = None
         self.sound_path = None
+        self.label = None  # Label for the alarm to display when it rings
     
     @classmethod
     def from_dict(cls, data):
@@ -118,6 +119,9 @@ class Alarm:
         
         if 'sound_path' in data:
             alarm.sound_path = data['sound_path']
+            
+        if 'label' in data:
+            alarm.label = data['label']
         
         return alarm
     
@@ -139,7 +143,8 @@ class Alarm:
             'days': self.days,
             'is_tts': self.is_tts,
             'message': self.message,
-            'sound_path': self.sound_path
+            'sound_path': self.sound_path,
+            'label': self.label
         }
 
 class PrayerTime:
