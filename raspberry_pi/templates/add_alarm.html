@@ -9,7 +9,7 @@
         <a href="{{ url_for('web_alarms') }}" class="btn btn-secondary">Back to Alarms</a>
     </div>
     
-    <form class="api-form" data-api-url="/alarms" data-api-method="POST" data-redirect="/web/alarms">
+    <form id="add-alarm-form" data-api-url="/alarms" data-api-method="POST" data-redirect="/web/alarms">
         <div class="form-group">
             <label for="alarm-time">Time</label>
             <input type="time" id="alarm-time" name="time" class="form-control" required>
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Custom submission handling
-    const form = document.querySelector('form.api-form');
+    const form = document.getElementById('add-alarm-form');
     const submitButton = document.getElementById('submit-button');
     const submitSpinner = document.getElementById('submit-spinner');
     let isSubmitting = false;

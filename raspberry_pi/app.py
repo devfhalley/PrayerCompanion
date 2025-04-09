@@ -184,6 +184,22 @@ def add_or_update_alarm():
             
             # Start of fix for duplicate alarm entries
             
+            # Normalize form data
+            # Handle the case where we get 'time' like "13:04" instead of separate hour and minute
+            if 'time' in data and ':' in str(data['time']):
+                try:
+                    time_parts = data['time'].split(':')
+                    data['hour'] = int(time_parts[0])
+                    data['minute'] = int(time_parts[1])
+                    logger.info(f"Converted time string '{data['time']}' to hour={data['hour']}, minute={data['minute']}")
+                except Exception as e:
+                    logger.error(f"Error converting time string: {str(e)}")
+            
+            # Convert string "true"/"false" to boolean for is_tts
+            if 'is_tts' in data and isinstance(data['is_tts'], str):
+                data['is_tts'] = data['is_tts'].lower() == 'true'
+                logger.info(f"Converted is_tts string to boolean: {data['is_tts']}")
+            
             # If we have any existing alarms with the same time (hour and minute), check if this might be a duplicate
             if not alarm_id:  # Only check for duplicates when adding, not updating
                 hour = data.get('hour')
