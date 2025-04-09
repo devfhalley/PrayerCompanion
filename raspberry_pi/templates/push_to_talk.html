@@ -59,6 +59,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Request access to the microphone
     async function initAudio() {
         try {
+            // First, check if the MediaDevices API is available
+            if (!navigator.mediaDevices) {
+                // Polyfill for older browsers
+                navigator.mediaDevices = {};
+            }
+            
+            // Check if getUserMedia is available
+            if (!navigator.mediaDevices.getUserMedia) {
+                const errorMsg = 'Browser does not support getUserMedia API, which is required for Push-to-Talk.';
+                console.error(errorMsg);
+                statusMessage.textContent = errorMsg;
+                statusMessage.style.color = 'red';
+                return false;
+            }
+            
             // Request audio with specific constraints for voice
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 audio: {
@@ -105,10 +120,12 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             
             statusMessage.textContent = 'Microphone access granted';
+            statusMessage.style.color = 'green';
             return true;
         } catch (error) {
             console.error('Error accessing microphone:', error);
-            statusMessage.textContent = 'Failed to access microphone';
+            statusMessage.textContent = 'Microphone access denied or unavailable in this browser';
+            statusMessage.style.color = 'red';
             return false;
         }
     }
