@@ -81,11 +81,34 @@ function initAudioStatusMonitor() {
     checkAudioStatus();
 }
 
+// Track consecutive failures
+let audioStatusFailCount = 0;
+const MAX_CONSECUTIVE_FAILURES = 5;
+
 // Check if audio is currently playing on the server
 async function checkAudioStatus() {
     try {
-        const response = await fetch('/status');
+        // Add a cache-busting parameter
+        const timestamp = Date.now();
+        const response = await fetch(`/status?t=${timestamp}`, {
+            method: 'GET',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            },
+            // Set a reasonable timeout
+            signal: AbortSignal.timeout(3000)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
+        
+        // Reset failure count on success
+        audioStatusFailCount = 0;
         
         if (data.audio_playing) {
             showAudioPlaying(data.audio_type);
@@ -94,7 +117,23 @@ async function checkAudioStatus() {
         }
     } catch (error) {
         console.error('Error checking audio status:', error);
+        
+        // Increment failure count
+        audioStatusFailCount++;
+        
+        // Hide the status indicator
         hideAudioPlaying();
+        
+        // If we've had too many consecutive failures, slow down the polling rate
+        if (audioStatusFailCount > MAX_CONSECUTIVE_FAILURES) {
+            console.warn(`Too many consecutive audio status check failures (${audioStatusFailCount}), reducing polling rate`);
+            
+            // Slow down the interval after too many failures
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = setInterval(checkAudioStatus, 5000); // Check every 5 seconds instead of 1
+            }
+        }
     }
 }
 

@@ -99,50 +99,105 @@ function initGlobalTicker() {
 function setupGlobalWebSocket() {
     try {
         // Close existing connection if it exists
-        if (tickerState.wsConnection && tickerState.wsConnection.readyState === WebSocket.OPEN) {
-            tickerState.wsConnection.close();
+        if (tickerState.wsConnection) {
+            try {
+                if ([WebSocket.OPEN, WebSocket.CONNECTING].includes(tickerState.wsConnection.readyState)) {
+                    tickerState.wsConnection.close();
+                }
+            } catch (e) {
+                console.warn('Error closing existing WebSocket connection:', e);
+            }
         }
         
-        // Create new connection
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
-        console.log('Setting up global WebSocket connection to:', wsUrl);
-        
-        tickerState.wsConnection = new WebSocket(wsUrl);
-        
-        tickerState.wsConnection.onopen = function() {
-            console.log('Global WebSocket connection established');
-        };
-        
-        tickerState.wsConnection.onmessage = function(event) {
-            try {
-                if (!event || !event.data) {
-                    console.error('Received empty WebSocket message');
-                    return;
+        // Create new connection with explicit error handling
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            // Fallback to IP if needed
+            const wsUrl = `${protocol}//${host}/ws`;
+            console.log('Setting up global WebSocket connection to:', wsUrl);
+            
+            tickerState.wsConnection = new WebSocket(wsUrl);
+            
+            // Handle connection was established
+            tickerState.wsConnection.onopen = function() {
+                console.log('Global WebSocket connection established successfully');
+                
+                // Reset reconnection attempts on successful connection
+                if (tickerState.reconnectAttempts) {
+                    tickerState.reconnectAttempts = 0;
                 }
                 
-                const message = JSON.parse(event.data);
-                console.log('Global WebSocket message received:', message);
-                
-                handleGlobalWebSocketMessage(message);
-            } catch (error) {
-                console.error('Error processing global WebSocket message:', error);
+                // Send a ping message to verify connection is working
+                try {
+                    tickerState.wsConnection.send(JSON.stringify({
+                        type: 'ping',
+                        timestamp: Date.now()
+                    }));
+                } catch (e) {
+                    console.warn('Failed to send ping message:', e);
+                }
+            };
+            
+            // Handle incoming messages
+            tickerState.wsConnection.onmessage = function(event) {
+                try {
+                    if (!event || !event.data) {
+                        console.warn('Received empty WebSocket message');
+                        return;
+                    }
+                    
+                    const message = JSON.parse(event.data);
+                    console.log('Global WebSocket message received:', message);
+                    
+                    // Special case for ping response
+                    if (message.type === 'pong') {
+                        console.log('Received pong response from server');
+                        return;
+                    }
+                    
+                    handleGlobalWebSocketMessage(message);
+                } catch (error) {
+                    console.error('Error processing global WebSocket message:', error);
+                }
+            };
+            
+            // Track reconnection attempts
+            if (!tickerState.reconnectAttempts) {
+                tickerState.reconnectAttempts = 0;
             }
-        };
-        
-        tickerState.wsConnection.onclose = function() {
-            console.log('Global WebSocket connection closed, attempting to reconnect...');
-            // Try to reconnect after 3 seconds
-            setTimeout(setupGlobalWebSocket, 3000);
-        };
-        
-        tickerState.wsConnection.onerror = function(error) {
-            console.error('Global WebSocket error:', error);
-        };
-    } catch (error) {
-        console.error('Error setting up global WebSocket:', error);
-        // Still try to reconnect
-        setTimeout(setupGlobalWebSocket, 5000);
+            
+            // Connection was closed
+            tickerState.wsConnection.onclose = function(event) {
+                console.log(`Global WebSocket connection closed (code: ${event.code}, reason: ${event.reason}), attempting to reconnect...`);
+                
+                // Implement exponential backoff for reconnection
+                tickerState.reconnectAttempts++;
+                const delay = Math.min(30000, Math.pow(1.5, tickerState.reconnectAttempts) * 1000);
+                console.log(`Reconnecting in ${Math.round(delay/1000)} seconds (attempt ${tickerState.reconnectAttempts})`);
+                
+                setTimeout(setupGlobalWebSocket, delay);
+            };
+            
+            // Error occurred
+            tickerState.wsConnection.onerror = function(error) {
+                console.error('Global WebSocket error:', error);
+                // Don't attempt to reconnect here, let the onclose handler do it
+            };
+        } catch (socketError) {
+            console.error('Failed to create WebSocket connection:', socketError);
+            // Implement exponential backoff for reconnection
+            if (!tickerState.reconnectAttempts) {
+                tickerState.reconnectAttempts = 0;
+            }
+            tickerState.reconnectAttempts++;
+            const delay = Math.min(30000, Math.pow(1.5, tickerState.reconnectAttempts) * 1000);
+            console.log(`Will retry WebSocket connection in ${Math.round(delay/1000)} seconds (attempt ${tickerState.reconnectAttempts})`);
+            setTimeout(setupGlobalWebSocket, delay);
+        }
+    } catch (outerError) {
+        console.error('Critical error in setupGlobalWebSocket:', outerError);
+        setTimeout(setupGlobalWebSocket, 10000);
     }
 }
 

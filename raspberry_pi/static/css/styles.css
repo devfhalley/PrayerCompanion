@@ -488,7 +488,6 @@ footer {
     transform: translateY(0);
     transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
     animation: float-in 0.5s forwards;
-    background: linear-gradient(135deg, #2b8a3e, #2c6c3b);
     color: white;
 }
 

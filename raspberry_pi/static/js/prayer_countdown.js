@@ -302,7 +302,6 @@ function createFloatingCountdownWidget(prayerTimesState) {
                 bottom: 20px;
                 right: 20px;
                 width: 280px;
-                background: white;
                 border-radius: 8px;
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
                 padding: 15px;

@@ -11,6 +11,7 @@ import io
 import tempfile
 import os
 import threading
+import time
 from flask_sock import Sock
 from pydub import AudioSegment
 
@@ -173,6 +174,19 @@ def process_message(message, audio_player):
         data = json.loads(message)
         message_type = data.get('type')
         
+        # Handle ping messages with immediate pong response
+        if message_type == 'ping':
+            logger.debug("Received ping message, sending pong")
+            timestamp = data.get('timestamp', 0)
+            pong_message = {
+                'type': 'pong',
+                'timestamp': timestamp,
+                'server_time': int(time.time() * 1000)
+            }
+            # Send pong response to all clients - helps with keepalive
+            broadcast_message(pong_message)
+            return
+            
         if message_type == 'ptt_start':
             logger.info("Push-to-talk started")
             # Stop any current playback
@@ -217,6 +231,19 @@ def process_message(message, audio_player):
         
         elif message_type == 'ptt_stop':
             logger.info("Push-to-talk stopped")
+            
+        elif message_type == 'client_connect':
+            # Client is reporting that it has connected
+            client_info = data.get('client_info', {})
+            logger.info(f"Client connected: {client_info}")
+            
+            # Send an acknowledgement
+            ack_message = {
+                'type': 'connect_ack',
+                'server_time': int(time.time() * 1000),
+                'status': 'connected'
+            }
+            broadcast_message(ack_message)
             
         else:
             logger.warning(f"Unknown message type: {message_type}")
