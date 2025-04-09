@@ -124,6 +124,8 @@ class DatabaseWrapper:
             Alarm ID
         """
         with _get_db_connection() as conn:
+            # This connection will be used for both insert and verification
+            conn.autocommit = False  # Manually control transaction
             cursor = conn.cursor()
             
             # Convert days list to string
@@ -140,40 +142,24 @@ class DatabaseWrapper:
             if label_value is not None:
                 label_value = str(label_value)
                 logger.info(f"Converted label to string: {label_value}")
-                
-            # Execute the insertion as a direct SQL statement for debugging
+            
+            # Execute the insertion with a single statement for all cases
             try:
-                if label_value is None:
-                    logger.info("Executing SQL with NULL label value")
-                    cursor.execute('''
-                    INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, NULL)
-                    RETURNING id
-                    ''', (
-                        alarm.time,
-                        alarm.enabled,
-                        alarm.repeating,
-                        days_str,
-                        alarm.is_tts,
-                        alarm.message,
-                        alarm.sound_path,
-                    ))
-                else:
-                    logger.info(f"Executing SQL with label value: '{label_value}'")
-                    cursor.execute('''
-                    INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    ''', (
-                        alarm.time,
-                        alarm.enabled,
-                        alarm.repeating,
-                        days_str,
-                        alarm.is_tts,
-                        alarm.message,
-                        alarm.sound_path,
-                        label_value,
-                    ))
+                logger.info(f"Executing SQL with label value: '{label_value}'")
+                cursor.execute('''
+                INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                ''', (
+                    alarm.time,
+                    alarm.enabled,
+                    alarm.repeating,
+                    days_str,
+                    alarm.is_tts,
+                    alarm.message,
+                    alarm.sound_path,
+                    label_value,  # This will be NULL if label_value is None
+                ))
             except Exception as e:
                 logger.error(f"Error inserting alarm: {str(e)}")
                 raise
@@ -185,15 +171,37 @@ class DatabaseWrapper:
                 
                 # Verify the data was inserted correctly by retrieving it again
                 try:
-                    # Direct SQL query as a fallback
-                    direct_cursor = conn.cursor()
-                    direct_cursor.execute('SELECT label FROM alarms WHERE id = %s', (alarm.id,))
+                    # DEBUGGING: Print the SQL parameters for insertion
+                    logger.info(f"VALUES in INSERT query: {alarm.time}, {alarm.enabled}, {alarm.repeating}, {days_str}, {alarm.is_tts}, {alarm.message}, {alarm.sound_path}, {label_value}")
+                    
+                    # Force update of the label with a direct approach
+                    try:
+                        logger.info(f"Performing direct label update for alarm {alarm.id}")
+                        if label_value:
+                            conn.cursor().execute(
+                                "UPDATE alarms SET label = %s WHERE id = %s", 
+                                (label_value, alarm.id)
+                            )
+                            conn.commit()
+                            logger.info(f"Label directly set to '{label_value}' for alarm {alarm.id}")
+                        else:
+                            logger.info(f"No label to set for alarm {alarm.id}")
+                    except Exception as e:
+                        logger.error(f"Error with direct label update: {e}")
+                    
+                    # Verify with direct query using RealDictCursor
+                    direct_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    direct_cursor.execute('SELECT * FROM alarms WHERE id = %s', (alarm.id,))
                     direct_result = direct_cursor.fetchone()
+                    
                     if direct_result:
-                        label_from_db = direct_result['label']
+                        for key, value in direct_result.items():
+                            logger.info(f"Verification - field '{key}': '{value}'")
+                        
+                        label_from_db = direct_result.get('label')
                         logger.info(f"Verification - label in database via direct query: '{label_from_db}'")
                         
-                        # Explicitly update the label in the database if it's not matching
+                        # If label is still missing, try one more direct update
                         if label_value is not None and (label_from_db is None or label_from_db != label_value):
                             logger.warning(f"Label mismatch! Expected: '{label_value}', got: '{label_from_db}'. Fixing...")
                             fix_cursor = conn.cursor()

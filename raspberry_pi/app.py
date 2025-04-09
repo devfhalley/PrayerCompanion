@@ -356,6 +356,21 @@ def add_or_update_alarm():
                 alarm.id = new_id
                 logger.info(f"Alarm {new_id} added in background thread")
                 
+                # Special handling for label: If a label was provided but might not have been saved correctly,
+                # do a direct update using raw SQL to ensure it's properly saved
+                if alarm.label:
+                    try:
+                        # Use execute_sql directly to set the label
+                        import psycopg2
+                        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+                        conn.autocommit = True
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE alarms SET label = %s WHERE id = %s", (alarm.label, alarm.id))
+                        logger.info(f"Direct SQL update: Set label to '{alarm.label}' for alarm {alarm.id}")
+                        conn.close()
+                    except Exception as e:
+                        logger.error(f"Error in direct label update: {str(e)}")
+                
             # Debug: Retrieve and log the saved alarm to check if label is present
             saved_alarm = db.get_alarm(alarm.id)
             logger.info(f"Saved alarm retrieved from database: {saved_alarm.to_dict() if saved_alarm else 'None'}")
