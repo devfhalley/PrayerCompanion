@@ -1,0 +1,32 @@
+psycopg2.errors.UndefinedTable: relation "youtube_videos" does not exist
+LINE 1: SELECT * FROM youtube_videos WHERE enabled = TRUE ORDER BY p...
+                      ^
+
+2025-04-09 16:49:55,777 - werkzeug - INFO - 172.15.2.229 - - [09/Apr/2025 16:49:55] "GET /web HTTP/1.1" 500 -
+2025-04-09 16:49:59,137 - database - INFO - Initializing PostgreSQL database
+2025-04-09 16:49:59,145 - database - INFO - PostgreSQL database initialized
+2025-04-09 16:49:59,153 - database_pg - ERROR - Database error: relation "youtube_videos" does not exist
+LINE 1: SELECT * FROM youtube_videos WHERE enabled = TRUE ORDER BY p...
+                      ^
+
+2025-04-09 16:49:59,153 - app - ERROR - Exception on /web [GET]
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.10/dist-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/usr/local/lib/python3.10/dist-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/usr/local/lib/python3.10/dist-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/usr/local/lib/python3.10/dist-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/home/me/PrayerCompanion/raspberry_pi/app.py", line 839, in web_home
+    youtube_videos = db.get_enabled_youtube_videos()
+  File "/home/me/PrayerCompanion/raspberry_pi/database_pg.py", line 851, in get_enabled_youtube_videos
+    dict_cursor.execute('SELECT * FROM youtube_videos WHERE enabled = TRUE ORDER BY position')
+  File "/usr/local/lib/python3.10/dist-packages/psycopg2/extras.py", line 236, in execute
+    return super().execute(query, vars)
+psycopg2.errors.UndefinedTable: relation "youtube_videos" does not exist
+LINE 1: SELECT * FROM youtube_videos WHERE enabled = TRUE ORDER BY p...
+                      ^
+
+2025-04-09 16:49:59,154 - werkzeug - INFO - 172.15.2.229 - - [09/Apr/2025 16:49:59] "GET /web HTTP/1.1" 500 -
