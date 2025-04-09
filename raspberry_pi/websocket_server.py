@@ -18,7 +18,8 @@ from pydub import AudioSegment
 logger = logging.getLogger(__name__)
 
 # Global variables
-clients = set()
+# Using a dictionary to store clients with their IDs as keys for better tracking
+clients = {}
 clients_lock = threading.Lock()
 
 def setup_websocket(app, audio_player):
@@ -37,7 +38,8 @@ def setup_websocket(app, audio_player):
         logger.info(f"New WebSocket client connected: {client_id}")
         
         with clients_lock:
-            clients.add(ws)
+            # Store client with its ID as the key
+            clients[client_id] = ws
         
         try:
             # Keep connection alive and process messages
@@ -56,8 +58,9 @@ def setup_websocket(app, audio_player):
         
         finally:
             with clients_lock:
-                if ws in clients:
-                    clients.remove(ws)
+                # Remove client using its ID
+                if client_id in clients:
+                    del clients[client_id]
             logger.info(f"WebSocket client disconnected: {client_id}")
 
 def convert_webm_to_wav(webm_data):
@@ -263,16 +266,22 @@ def broadcast_message(message):
         message = json.dumps(message)
     
     with clients_lock:
-        disconnected_clients = set()
+        disconnected_client_ids = set()
         
-        for client in clients:
+        # Iterate over items to get both client_id and websocket object
+        for client_id, ws in list(clients.items()):
             try:
-                client.send(message)
+                ws.send(message)
             except Exception as e:
-                logger.error(f"Error sending message to client: {str(e)}")
-                disconnected_clients.add(client)
+                logger.error(f"Error sending message to client {client_id}: {str(e)}")
+                disconnected_client_ids.add(client_id)
         
         # Remove disconnected clients
-        for client in disconnected_clients:
-            clients.remove(client)
-            logger.info(f"Removed disconnected client: {id(client)}")
+        for client_id in disconnected_client_ids:
+            if client_id in clients:
+                del clients[client_id]
+                logger.info(f"Removed disconnected client: {client_id}")
+                
+        # Log active connection count
+        if clients:
+            logger.debug(f"Active WebSocket connections: {len(clients)}")
