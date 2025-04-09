@@ -1105,14 +1105,18 @@ if __name__ == '__main__':
     # Give schedulers time to initialize
     time.sleep(2)
     
+    # Check for Replit environment
+    in_replit = os.environ.get('REPL_ID') is not None
+    
     # SSL Certificate paths
-    cert_path = '/tmp/ssl/raspberrypi.crt'
-    key_path = '/tmp/ssl/raspberrypi.key'
+    ssl_dir = os.path.join(os.path.dirname(__file__), 'ssl')
+    cert_path = os.path.join(ssl_dir, 'server.crt')
+    key_path = os.path.join(ssl_dir, 'server.key')
     
     # Check if SSL certificates exist, use them if available
     if os.path.exists(cert_path) and os.path.exists(key_path):
         # Debug info about host and port with SSL
-        logger.info("Starting Flask app with SSL on host='0.0.0.0', port=5000")
+        logger.info(f"Starting Flask app with SSL on host='0.0.0.0', port=5000")
         # Start Flask app with SSL
         app.run(host='0.0.0.0', port=5000, threaded=True, debug=False, 
                 ssl_context=(cert_path, key_path))

@@ -271,15 +271,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     loadingOverlay.remove();
                 }
                 
+                // Show a success message about the alarm creation
+                showNotification("Alarm created successfully! Redirecting to alarms page...");
+                
                 // Use setTimeout to ensure the notification is shown before redirecting
                 setTimeout(() => {
                     try {
+                        // Force a full reload to make sure we get the latest data
+                        console.log("Performing hard redirect to alarms page");
+                        window.location.href = '';  // Clear the URL first to force a reload
                         // Use location.replace to force a complete page refresh without using browser history
                         window.location.replace(`/web/alarms?t=${timestamp}&r=${random}`);
                     } catch (e) {
                         console.error('Error during redirect:', e);
-                        // Fallback redirect method
-                        window.location.href = `/web/alarms?t=${timestamp}&r=${random}`;
+                        // Fallback redirect method with delay to handle any navigation errors
+                        setTimeout(() => {
+                            window.location.href = `/web/alarms?t=${timestamp}&r=${random}`;
+                        }, 100);
                     }
                 }, 1500);
             } else {

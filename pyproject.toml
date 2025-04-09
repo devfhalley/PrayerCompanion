@@ -7,10 +7,12 @@ dependencies = [
     "flask>=3.1.0",
     "flask-sock>=0.7.0",
     "gtts>=2.5.4",
+    "paste>=3.10.1",
     "psycopg2-binary>=2.9.10",
     "pydub>=0.25.1",
     "pygame>=2.6.1",
     "requests>=2.32.3",
     "schedule>=1.2.2",
     "trafilatura>=2.0.0",
+    "waitress>=3.0.2",
 ]

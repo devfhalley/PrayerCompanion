@@ -6,10 +6,20 @@
 <div class="card">
     <div class="card-header">
         <h2>Alarms</h2>
-        <a href="{{ url_for('web_add_alarm') }}" class="btn">Add New Alarm</a>
+        <div class="btn-toolbar">
+            <a href="{{ url_for('web_add_alarm') }}" class="btn">Add New Alarm</a>
+            <button id="refresh-alarms" class="btn btn-secondary ml-2">
+                <i class="fas fa-sync"></i> Refresh
+            </button>
+        </div>
     </div>
     
     <div id="alarms-container">
+        <div id="alarms-status" class="text-center my-2" style="display: none;">
+            <small class="text-warning">
+                <i class="fas fa-exclamation-triangle"></i> WebSocket connection unavailable. Auto-refreshing every 15 seconds.
+            </small>
+        </div>
         <div id="alarms-list">
             Loading alarms...
         </div>
@@ -20,8 +30,40 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    let refreshTimer = null;
+    let wsConnected = false;
+    const REFRESH_INTERVAL = 15000; // 15 seconds
+    const alarmStatusElement = document.getElementById('alarms-status');
+    const refreshButton = document.getElementById('refresh-alarms');
+    
+    // Function to check WebSocket connection and setup auto-refresh if needed
+    function setupRefreshMechanism() {
+        // Check if global WebSocket is available and connected
+        if (window.globalWs && window.globalWs.readyState === WebSocket.OPEN) {
+            console.log('WebSocket connection active, using real-time updates');
+            wsConnected = true;
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+            alarmStatusElement.style.display = 'none';
+        } else {
+            console.log('WebSocket not connected, setting up auto-refresh');
+            wsConnected = false;
+            alarmStatusElement.style.display = 'block';
+            
+            // Setup auto-refresh timer if not already set
+            if (!refreshTimer) {
+                refreshTimer = setInterval(fetchAlarms, REFRESH_INTERVAL);
+            }
+        }
+    }
+    
     // Fetch all alarms
     async function fetchAlarms() {
+        // Check WebSocket status first
+        setupRefreshMechanism();
+        
         // Show loading indicator with spinner
         const alarmsList = document.getElementById('alarms-list');
         alarmsList.innerHTML = `
@@ -177,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="alert alert-danger mt-3">
                     <i class="fas fa-exclamation-circle"></i>
                     Error loading alarms: ${error.message}
-                    <button class="btn btn-sm btn-outline-danger ms-3" onclick="window.location.reload()">
+                    <button class="btn btn-sm btn-outline-danger ms-3" onclick="fetchAlarms()">
                         <i class="fas fa-sync"></i> Retry
                     </button>
                 </div>
@@ -308,6 +350,31 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchAlarms();
         }
     }
+    
+    // Add event listener to the refresh button
+    refreshButton.addEventListener('click', function() {
+        const icon = this.querySelector('i');
+        
+        // Disable the button and show a spinning icon
+        this.disabled = true;
+        if (icon) {
+            icon.classList.remove('fa-sync');
+            icon.classList.add('fa-spinner', 'fa-spin');
+        }
+        
+        // Fetch alarms
+        fetchAlarms().finally(() => {
+            // Re-enable the button and restore the icon
+            this.disabled = false;
+            if (icon) {
+                icon.classList.remove('fa-spinner', 'fa-spin');
+                icon.classList.add('fa-sync');
+            }
+        });
+    });
+    
+    // Check WebSocket status periodically to update UI
+    setInterval(setupRefreshMechanism, 5000);
     
     // Initial fetch
     fetchAlarms();

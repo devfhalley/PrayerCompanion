@@ -27,11 +27,11 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd raspberry_pi && python app.py"
+args = "cd raspberry_pi && python serve_dual.py"
 waitForPort = 5000
 
 [deployment]
-run = ["sh", "-c", "cd raspberry_pi && python app.py"]
+run = ["sh", "-c", "cd raspberry_pi && python serve_dual.py"]
 
 [[ports]]
 localPort = 5000
@@ -40,3 +40,7 @@ externalPort = 5000
 [[ports]]
 localPort = 8000
 externalPort = 80
+
+[[ports]]
+localPort = 8080
+externalPort = 8080

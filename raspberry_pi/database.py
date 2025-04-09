@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import threading
 from contextlib import contextmanager
 
-from models import Alarm, PrayerTime
+from models import Alarm, PrayerTime, YouTubeVideo
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +34,13 @@ def init_db():
             time BIGINT NOT NULL,
             enabled BOOLEAN NOT NULL,
             repeating BOOLEAN NOT NULL,
-            days VARCHAR(7),
+            days BOOLEAN[] DEFAULT '{false,false,false,false,false,false,false}',
+            days_old VARCHAR(7),
             is_tts BOOLEAN NOT NULL,
             message TEXT,
-            sound_path TEXT
+            sound_path TEXT,
+            label TEXT,
+            priority INTEGER
         )
         ''')
         
@@ -49,6 +52,18 @@ def init_db():
             time TIMESTAMP NOT NULL,
             enabled BOOLEAN NOT NULL,
             custom_sound TEXT
+        )
+        ''')
+        
+        # Create youtube_videos table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS youtube_videos (
+            id SERIAL PRIMARY KEY,
+            url TEXT NOT NULL,
+            title TEXT,
+            enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            position INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         ''')
         
@@ -93,7 +108,6 @@ def _get_db_connection():
 def get_db():
     """Get the database wrapper."""
     init_db()  # Make sure database is initialized
-    from database_pg import DatabaseWrapper
     return DatabaseWrapper()
 
 # This class is kept for backward compatibility but should be replaced with the one from database_pg.py
@@ -112,12 +126,16 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
-            # Convert days list to string
-            days_str = ''.join('1' if day else '0' for day in alarm.days)
+            # Convert days list to string - make sure we're using the format PostgreSQL expects for arrays
+            if alarm.days and len(alarm.days) > 0:
+                days_str = '{' + ','.join('true' if day else 'false' for day in alarm.days) + '}'
+            else:
+                # Default to all days false if no days are provided
+                days_str = '{false,false,false,false,false,false,false}'
             
             cursor.execute('''
-            INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             ''', (
                 alarm.time,
@@ -126,7 +144,8 @@ class DatabaseWrapper:
                 days_str,
                 alarm.is_tts,
                 alarm.message,
-                alarm.sound_path
+                alarm.sound_path,
+                alarm.label
             ))
             
             result = cursor.fetchone()
@@ -147,12 +166,16 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
-            # Convert days list to string
-            days_str = ''.join('1' if day else '0' for day in alarm.days)
+            # Convert days list to string - make sure we're using the format PostgreSQL expects for arrays
+            if alarm.days and len(alarm.days) > 0:
+                days_str = '{' + ','.join('true' if day else 'false' for day in alarm.days) + '}'
+            else:
+                # Default to all days false if no days are provided
+                days_str = '{false,false,false,false,false,false,false}'
             
             cursor.execute('''
             UPDATE alarms
-            SET time = %s, enabled = %s, repeating = %s, days = %s, is_tts = %s, message = %s, sound_path = %s
+            SET time = %s, enabled = %s, repeating = %s, days = %s, is_tts = %s, message = %s, sound_path = %s, label = %s
             WHERE id = %s
             ''', (
                 alarm.time,
@@ -162,6 +185,7 @@ class DatabaseWrapper:
                 alarm.is_tts,
                 alarm.message,
                 alarm.sound_path,
+                alarm.label,
                 alarm.id
             ))
             
@@ -405,13 +429,41 @@ class DatabaseWrapper:
         alarm.enabled = row['enabled']
         alarm.repeating = row['repeating']
         
-        # Convert days string to boolean list
-        days_str = row['days'] or '0000000'
-        alarm.days = [c == '1' for c in days_str]
+        # Handle different formats of days field
+        days_data = row['days']
+        if days_data is None:
+            # Default to all days disabled
+            alarm.days = [False, False, False, False, False, False, False]
+        elif isinstance(days_data, str) and days_data.startswith('{') and days_data.endswith('}'):
+            # PostgreSQL array format like '{true,false,true,false,false,false,false}'
+            try:
+                # Remove curly braces and split by comma
+                days_values = days_data[1:-1].split(',')
+                alarm.days = [val.lower() == 'true' or val == 't' for val in days_values]
+                # Ensure we have 7 days
+                if len(alarm.days) < 7:
+                    alarm.days.extend([False] * (7 - len(alarm.days)))
+            except Exception as e:
+                logger.error(f"Error parsing days array: {e}")
+                alarm.days = [False, False, False, False, False, False, False]
+        elif isinstance(days_data, str):
+            # Legacy string format like '1001000'
+            alarm.days = [c == '1' for c in days_data]
+            # Ensure we have 7 days
+            if len(alarm.days) < 7:
+                alarm.days.extend([False] * (7 - len(alarm.days)))
+        else:
+            # Unknown format, default to all days disabled
+            logger.warning(f"Unknown days format: {days_data}")
+            alarm.days = [False, False, False, False, False, False, False]
         
         alarm.is_tts = row['is_tts']
         alarm.message = row['message']
         alarm.sound_path = row['sound_path']
+        
+        # Set label if it exists in the row
+        if 'label' in row:
+            alarm.label = row['label']
         
         return alarm
     
@@ -437,3 +489,153 @@ class DatabaseWrapper:
         prayer_time.custom_sound = row['custom_sound']
         
         return prayer_time
+        
+    def _row_to_youtube_video(self, row):
+        """Convert a database row to a YouTubeVideo object.
+        
+        Args:
+            row: Database row
+        
+        Returns:
+            YouTubeVideo object
+        """
+        video = YouTubeVideo()
+        
+        # Check if row is None before proceeding
+        if row is None:
+            return video
+            
+        video.id = row['id']
+        video.url = row['url']
+        video.title = row['title']
+        video.enabled = row['enabled']
+        video.position = row['position']
+        
+        return video
+    
+    def add_youtube_video(self, video):
+        """Add a YouTube video to the database.
+        
+        Args:
+            video: YouTubeVideo object to add
+        
+        Returns:
+            YouTubeVideo ID
+        """
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+            INSERT INTO youtube_videos (url, title, enabled, position)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+            ''', (
+                video.url,
+                video.title,
+                video.enabled,
+                video.position
+            ))
+            
+            result = cursor.fetchone()
+            if result:
+                video.id = result[0]
+                return video.id
+            else:
+                logger.error("Failed to retrieve ID of newly inserted YouTube video")
+                return None
+    
+    def update_youtube_video(self, video):
+        """Update a YouTube video.
+        
+        Args:
+            video: YouTubeVideo object to update
+        """
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+            UPDATE youtube_videos
+            SET url = %s, title = %s, enabled = %s, position = %s
+            WHERE id = %s
+            ''', (
+                video.url,
+                video.title,
+                video.enabled,
+                video.position,
+                video.id
+            ))
+    
+    def delete_youtube_video(self, video_id):
+        """Delete a YouTube video.
+        
+        Args:
+            video_id: ID of the video to delete
+        """
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM youtube_videos WHERE id = %s', (video_id,))
+    
+    def get_youtube_video(self, video_id):
+        """Get a YouTube video by ID.
+        
+        Args:
+            video_id: ID of the video to get
+        
+        Returns:
+            YouTubeVideo object or None
+        """
+        with _get_db_connection() as conn:
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            dict_cursor.execute('SELECT * FROM youtube_videos WHERE id = %s', (video_id,))
+            row = dict_cursor.fetchone()
+            
+            if row:
+                return self._row_to_youtube_video(row)
+            
+            return None
+    
+    def get_all_youtube_videos(self):
+        """Get all YouTube videos.
+        
+        Returns:
+            List of YouTubeVideo objects
+        """
+        with _get_db_connection() as conn:
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            dict_cursor.execute('SELECT * FROM youtube_videos ORDER BY position')
+            rows = dict_cursor.fetchall()
+            
+            return [self._row_to_youtube_video(row) for row in rows]
+    
+    def get_enabled_youtube_videos(self):
+        """Get all enabled YouTube videos.
+        
+        Returns:
+            List of enabled YouTubeVideo objects
+        """
+        with _get_db_connection() as conn:
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            dict_cursor.execute('SELECT * FROM youtube_videos WHERE enabled = TRUE ORDER BY position')
+            rows = dict_cursor.fetchall()
+            
+            return [self._row_to_youtube_video(row) for row in rows]
+    
+    def reorder_youtube_videos(self, video_ids):
+        """Reorder YouTube videos.
+        
+        Args:
+            video_ids: List of video IDs in the new order
+        """
+        with _get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            for i, video_id in enumerate(video_ids):
+                cursor.execute('''
+                UPDATE youtube_videos
+                SET position = %s
+                WHERE id = %s
+                ''', (i, video_id))
