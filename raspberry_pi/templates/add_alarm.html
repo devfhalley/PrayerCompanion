@@ -144,16 +144,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const isEnabled = document.getElementById('alarm-enabled').checked;
         const isTts = document.querySelector('input[name="is_tts"]:checked').value === 'true';
         
-        // Construct data object
+        // Construct data object - start with basic properties that apply to all alarms
         const data = {
             hour: hours,
             minute: minutes,
             enabled: isEnabled,
-            repeating: isRepeating,
             is_tts: isTts
         };
         
+        // Only set repeating property for repeating alarms
         if (isRepeating) {
+            data.repeating = true;
+            
             // Get selected days
             const days = [];
             for (let i = 0; i < 7; i++) {
@@ -167,7 +169,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 resetSubmitButton();
                 return;
             }
+            
+            // For repeating alarms, we don't need a date
+            delete data.date;
         } else {
+            // For one-time alarms, explicitly set repeating to false
+            data.repeating = false;
+            
             // Get date for one-time alarm
             const alarmDate = document.getElementById('alarm-date').value;
             data.date = alarmDate;
@@ -182,6 +190,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 resetSubmitButton();
                 return;
             }
+            
+            // For one-time alarms, we don't set any days
+            delete data.days;
         }
         
         if (isTts) {

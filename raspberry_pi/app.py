@@ -182,6 +182,33 @@ def add_or_update_alarm():
                     f.write(base64.b64decode(sound_file_content))
                 data['sound_path'] = file_path
             
+            # Fix for the duplicate alarm issue - ensure repeating is explicitly set
+            # The client should now be sending this properly, but we'll validate it here as well
+            if 'repeating' not in data:
+                # Default to false if not specified
+                data['repeating'] = False
+            
+            # If repeating is false, make sure no days are set
+            if not data.get('repeating', False) and 'days' in data:
+                # Remove days data for non-repeating alarms to prevent confusion
+                del data['days']
+                
+            # If repeating is true, ensure we have days data
+            if data.get('repeating', False) and ('days' not in data or not any(data['days'])):
+                # If no days are selected but alarm is marked as repeating, log a warning and default to all days
+                if 'days' not in data:
+                    logger.warning("Repeating alarm without days specified, defaulting to no days selected")
+                    data['days'] = [False] * 7
+                # Validate at least one day is selected
+                if not any(data['days']):
+                    logger.warning("Repeating alarm with no days selected, defaulting to today")
+                    # Set today's weekday
+                    today_weekday = datetime.datetime.now().weekday()
+                    # Convert to Sunday-based (0=Sunday) if using Monday-based (0=Monday)
+                    sunday_based_weekday = (today_weekday + 1) % 7
+                    data['days'] = [False] * 7
+                    data['days'][sunday_based_weekday] = True
+            
             # Create alarm object
             alarm = Alarm.from_dict(data)
             
