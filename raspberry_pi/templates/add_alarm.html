@@ -125,8 +125,9 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        // Prevent double submissions
+        // Prevent double submissions - this is critical to avoiding duplicate alarms
         if (isSubmitting) {
+            console.log('Form already submitting - preventing double submission');
             return;
         }
         
@@ -135,6 +136,22 @@ document.addEventListener('DOMContentLoaded', function() {
         submitButton.disabled = true;
         submitButton.style.opacity = '0.7';
         submitSpinner.style.display = 'flex';
+        
+        // Display a loading overlay to prevent user interaction
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'loading-overlay';
+        loadingOverlay.style.position = 'fixed';
+        loadingOverlay.style.top = '0';
+        loadingOverlay.style.left = '0';
+        loadingOverlay.style.width = '100vw';
+        loadingOverlay.style.height = '100vh';
+        loadingOverlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        loadingOverlay.style.zIndex = '9999';
+        loadingOverlay.style.display = 'flex';
+        loadingOverlay.style.justifyContent = 'center';
+        loadingOverlay.style.alignItems = 'center';
+        loadingOverlay.innerHTML = '<div class="spinner-border text-light" role="status"><span class="visually-hidden">Loading...</span></div>';
+        document.body.appendChild(loadingOverlay);
         
         // Gather all the data
         const alarmTime = document.getElementById('alarm-time').value;
@@ -207,21 +224,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            // Display a loading overlay
-            const loadingOverlay = document.createElement('div');
-            loadingOverlay.id = 'loading-overlay';
-            loadingOverlay.style.position = 'fixed';
-            loadingOverlay.style.top = '0';
-            loadingOverlay.style.left = '0';
-            loadingOverlay.style.width = '100vw';
-            loadingOverlay.style.height = '100vh';
-            loadingOverlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
-            loadingOverlay.style.zIndex = '9999';
-            loadingOverlay.style.display = 'flex';
-            loadingOverlay.style.justifyContent = 'center';
-            loadingOverlay.style.alignItems = 'center';
-            loadingOverlay.innerHTML = '<div class="spinner-border text-light" role="status"><span class="visually-hidden">Loading...</span></div>';
-            document.body.appendChild(loadingOverlay);
+            // Loading overlay is already created at the beginning of submission
             
             console.log('Sending alarm data:', data);
             const response = await fetch('/alarms', {

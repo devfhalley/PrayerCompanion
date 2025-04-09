@@ -182,38 +182,98 @@ def add_or_update_alarm():
                     f.write(base64.b64decode(sound_file_content))
                 data['sound_path'] = file_path
             
-            # Fix for the duplicate alarm issue - ensure repeating is explicitly set
-            # The client should now be sending this properly, but we'll validate it here as well
+            # Start of fix for duplicate alarm entries
+            
+            # If we have any existing alarms with the same time (hour and minute), check if this might be a duplicate
+            if not alarm_id:  # Only check for duplicates when adding, not updating
+                hour = data.get('hour')
+                minute = data.get('minute')
+                
+                if hour is not None and minute is not None:
+                    # First see if we've already got an alarm at this time
+                    all_alarms = db.get_all_alarms()
+                    potential_duplicates = []
+                    
+                    for existing_alarm in all_alarms:
+                        # Convert timestamp to hour and minute
+                        existing_time = datetime.fromtimestamp(existing_alarm.time / 1000)
+                        if existing_time.hour == hour and existing_time.minute == minute:
+                            potential_duplicates.append(existing_alarm)
+                    
+                    if potential_duplicates:
+                        logger.warning(f"Found {len(potential_duplicates)} potential duplicate alarms with time {hour}:{minute}")
+                        # If we're adding a non-repeating alarm that matches a repeating one, or vice versa, 
+                        # this is likely user error - we'll update the first matching alarm instead of adding a new one
+                        
+                        # Check what we're trying to add
+                        is_repeating = data.get('repeating', False)
+                        
+                        for dup in potential_duplicates:
+                            # If we find an alarm with the same repeating status and the same date (for non-repeating alarms), 
+                            # update it instead of adding a new one
+                            if dup.repeating == is_repeating:
+                                # For non-repeating alarms, also check that the date is the same
+                                update_existing = True
+                                
+                                # For non-repeating alarms, ensure the date is the same
+                                if not is_repeating and 'date' in data:
+                                    # Convert the alarm's timestamp to a date
+                                    alarm_date = datetime.fromtimestamp(dup.time / 1000).strftime('%Y-%m-%d')
+                                    if alarm_date != data['date']:
+                                        # Different date, so don't update
+                                        update_existing = False
+                                        logger.info(f"Not updating alarm {dup.id} because date is different")
+                                        
+                                if update_existing:
+                                    logger.info(f"Updating existing alarm {dup.id} instead of creating duplicate")
+                                    # Set the alarm ID so we update instead of insert
+                                    alarm_id = dup.id
+                                    break
+            
+            # Ensure repeating is explicitly set
             if 'repeating' not in data:
                 # Default to false if not specified
                 data['repeating'] = False
             
-            # If repeating is false, make sure no days are set
-            if not data.get('repeating', False) and 'days' in data:
-                # Remove days data for non-repeating alarms to prevent confusion
-                del data['days']
-                
-            # If repeating is true, ensure we have days data
-            if data.get('repeating', False) and ('days' not in data or not any(data['days'])):
-                # If no days are selected but alarm is marked as repeating, log a warning and default to all days
-                if 'days' not in data:
-                    logger.warning("Repeating alarm without days specified, defaulting to no days selected")
-                    data['days'] = [False] * 7
-                # Validate at least one day is selected
-                if not any(data['days']):
-                    logger.warning("Repeating alarm with no days selected, defaulting to today")
-                    # Set today's weekday
-                    today_weekday = datetime.datetime.now().weekday()
-                    # Convert to Sunday-based (0=Sunday) if using Monday-based (0=Monday)
-                    sunday_based_weekday = (today_weekday + 1) % 7
-                    data['days'] = [False] * 7
-                    data['days'][sunday_based_weekday] = True
+            # Handle repeating vs non-repeating alarms properly
+            if data.get('repeating', False):
+                # For repeating alarms, ensure we have days data
+                if 'days' not in data or not any(data['days']):
+                    # If no days are selected but alarm is marked as repeating, log a warning and default to today
+                    if 'days' not in data:
+                        logger.warning("Repeating alarm without days specified, defaulting to no days selected")
+                        data['days'] = [False] * 7
+                    # Validate at least one day is selected
+                    if not any(data['days']):
+                        logger.warning("Repeating alarm with no days selected, defaulting to today")
+                        # Set today's weekday
+                        today_weekday = datetime.now().weekday()
+                        # Convert to Sunday-based (0=Sunday) if using Monday-based (0=Monday)
+                        sunday_based_weekday = (today_weekday + 1) % 7
+                        data['days'] = [False] * 7
+                        data['days'][sunday_based_weekday] = True
+            else:
+                # For non-repeating alarms:
+                # 1. Ensure repeating is explicitly false
+                data['repeating'] = False
+                # 2. Make sure no days are set to avoid confusion
+                if 'days' in data:
+                    del data['days']
+                # 3. Ensure we have a date
+                if 'date' not in data:
+                    # Default to today if no date specified for one-time alarms
+                    data['date'] = datetime.now().strftime('%Y-%m-%d')
+                    logger.warning(f"Non-repeating alarm without date, defaulting to today: {data['date']}")
+            
+            # End of fix for duplicate alarm entries
             
             # Create alarm object
             alarm = Alarm.from_dict(data)
             
             # Save to database
             if alarm_id:
+                # Set the ID on the alarm object
+                alarm.id = alarm_id
                 db.update_alarm(alarm)
                 logger.info(f"Alarm {alarm_id} updated in background thread")
             else:
