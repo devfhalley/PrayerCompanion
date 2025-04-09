@@ -168,6 +168,30 @@ PGPORT=port
 PGDATABASE=database
 ```
 
+### Running Database Migrations
+
+After setting up a fresh installation, you must run database migrations to create all necessary tables. This is especially important for newer features like the YouTube videos functionality.
+
+1. Ensure your PostgreSQL database environment variables are properly set up
+2. Navigate to the raspberry_pi directory:
+   ```bash
+   cd raspberry_pi
+   ```
+3. Make the migration script executable:
+   ```bash
+   chmod +x run_migrations.py
+   ```
+4. Run all migrations:
+   ```bash
+   ./run_migrations.py
+   ```
+5. To check what migrations would be applied without making changes:
+   ```bash
+   ./run_migrations.py --dry-run
+   ```
+
+If you see errors about missing tables (e.g., "relation youtube_videos does not exist"), this indicates you need to run the migrations.
+
 ### Migration Strategy
 
 To maintain data integrity and support continuous development/integration, follow these principles when making database changes:
@@ -279,6 +303,10 @@ When you need to make schema updates to the PostgreSQL database:
 ### Debugging Database Issues
 
 For debugging PostgreSQL database issues, use the `database_direct.py` module which provides direct SQL access. Always use this approach carefully and only for diagnostic purposes.
+
+#### Common Database Issues
+
+1. **Array Format Error**: If you see an error like `malformed array literal: "0000000"` with a detail mentioning "Array value must start with "{" or dimension information", this is due to PostgreSQL's array format requirements. The system needs to be updated to store days as a proper PostgreSQL array format like `{0,0,0,0,0,0,0}` instead of a string like `"0000000"`. Run the migration scripts to ensure database schema is properly set up.
 
 ### Direct SQL Access (for debugging only)
 
