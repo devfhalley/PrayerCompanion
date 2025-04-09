@@ -211,12 +211,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             
-            if (!response.ok) {
+            if (!response.ok && response.status !== 202) { // Status 202 is Accepted, which is valid
                 throw new Error(`Server returned ${response.status}: ${response.statusText}`);
             }
             
             const result = await response.json();
             console.log('Delete response:', result);
+            
+            // If we got a 202 Accepted response, it means the operation is being processed asynchronously
+            if (response.status === 202) {
+                console.log('Deletion started in background, waiting briefly before refreshing...');
+                // Give the server a moment to process the deletion
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
             
             if (result.status === 'success') {
                 showNotification('Alarm deleted successfully');

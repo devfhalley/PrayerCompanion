@@ -231,7 +231,14 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Server response:', result);
             
             if (result.status === 'success') {
-                showNotification('Alarm added successfully');
+                showNotification(result.message || 'Alarm request processed successfully');
+                
+                // If response is 202 Accepted, wait for a moment to let background operation complete
+                if (response.status === 202) {
+                    console.log('Alarm operation started in background, waiting briefly before redirecting...');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
                 // Force redirect to alarms page with a timestamp to prevent caching
                 const timestamp = new Date().getTime();
                 const random = Math.floor(Math.random() * 1000000);
@@ -253,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Fallback redirect method
                         window.location.href = `/web/alarms?t=${timestamp}&r=${random}`;
                     }
-                }, 1000);
+                }, 1500);
             } else {
                 throw new Error(result.message || 'Unknown error when adding alarm');
             }

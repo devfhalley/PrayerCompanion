@@ -160,42 +160,68 @@ def get_alarms():
 @app.route('/alarms', methods=['POST'])
 def add_or_update_alarm():
     """Add or update an alarm."""
-    data = request.json
-    db = get_db()
+    # Define a background thread function for processing the alarm
+    def process_alarm_creation(data, alarm_id):
+        try:
+            db = get_db()
+            alarm = None
+            
+            # Process sound file if provided
+            sound_file_name = data.get('sound_file_name')
+            sound_file_content = data.get('sound_file_content')
+            
+            if sound_file_name and sound_file_content:
+                # Create sounds directory if it doesn't exist
+                sounds_dir = os.path.join(os.path.dirname(__file__), "sounds")
+                os.makedirs(sounds_dir, exist_ok=True)
+                
+                # Save the file
+                import base64
+                file_path = os.path.join(sounds_dir, sound_file_name)
+                with open(file_path, 'wb') as f:
+                    f.write(base64.b64decode(sound_file_content))
+                data['sound_path'] = file_path
+            
+            # Create alarm object
+            alarm = Alarm.from_dict(data)
+            
+            # Save to database
+            if alarm_id:
+                db.update_alarm(alarm)
+                logger.info(f"Alarm {alarm_id} updated in background thread")
+            else:
+                new_id = db.add_alarm(alarm)
+                alarm.id = new_id
+                logger.info(f"Alarm {new_id} added in background thread")
+            
+            # Schedule the alarm
+            alarm_scheduler.schedule_alarm(alarm)
+            
+        except Exception as e:
+            logger.error(f"Error in background thread adding/updating alarm: {str(e)}")
     
-    # Check if alarm with this ID already exists (update case)
-    alarm_id = data.get('id')
-    
-    # Process sound file if provided
-    sound_file_name = data.get('sound_file_name')
-    sound_file_content = data.get('sound_file_content')
-    
-    if sound_file_name and sound_file_content:
-        # Create sounds directory if it doesn't exist
-        os.makedirs('sounds', exist_ok=True)
+    try:
+        # Get the data and check if it's an update or new alarm
+        data = request.json
+        alarm_id = data.get('id')
         
-        # Save the file
-        file_path = os.path.join('sounds', sound_file_name)
-        import base64
-        with open(file_path, 'wb') as f:
-            f.write(base64.b64decode(sound_file_content))
-        data['sound_path'] = file_path
+        # Start a background thread for processing
+        process_thread = threading.Thread(
+            target=process_alarm_creation, 
+            args=(data, alarm_id)
+        )
+        process_thread.daemon = True
+        process_thread.start()
+        
+        # Return immediately with a response
+        message = "Alarm update started" if alarm_id else "Alarm creation started"
+        logger.info(f"{message} in background thread")
+        
+        return jsonify({"status": "success", "message": message}), 202
     
-    # Create alarm object
-    alarm = Alarm.from_dict(data)
-    
-    # Save to database
-    if alarm_id:
-        db.update_alarm(alarm)
-        message = "Alarm updated"
-    else:
-        db.add_alarm(alarm)
-        message = "Alarm added"
-    
-    # Schedule the alarm
-    alarm_scheduler.schedule_alarm(alarm)
-    
-    return jsonify({"status": "success", "message": message})
+    except Exception as e:
+        logger.error(f"Error initiating alarm creation/update: {str(e)}")
+        return jsonify({"status": "error", "message": f"Failed to process alarm: {str(e)}"}), 500
 
 @app.route('/alarms/<int:alarm_id>', methods=['DELETE'])
 def delete_alarm(alarm_id):
