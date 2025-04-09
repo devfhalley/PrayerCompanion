@@ -19,7 +19,8 @@ class Alarm:
         self.is_tts = False
         self.message = None
         self.sound_path = None
-        self.label = None  # Label for the alarm to display when it rings
+        # Label is str or None - needed for type annotations
+        self.label = None  # type: str | None  # Label for the alarm to display when it rings
     
     @classmethod
     def from_dict(cls, data):
@@ -121,7 +122,17 @@ class Alarm:
             alarm.sound_path = data['sound_path']
             
         if 'label' in data:
-            alarm.label = data['label']
+            # Ensure label is either a string or None
+            label_value = data['label']
+            if label_value is None or label_value == '':
+                alarm.label = None
+            else:
+                alarm.label = str(label_value)
+                
+            # Add debug logging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Setting alarm label from dict: '{data['label']}' -> '{alarm.label}'")
         
         return alarm
     
@@ -132,6 +143,11 @@ class Alarm:
             Dictionary representation of the Alarm
         """
         time_obj = datetime.fromtimestamp(self.time / 1000.0)
+        
+        # Debug info for label value
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Converting Alarm to dict, label value: '{self.label}'")
         
         return {
             'id': self.id,

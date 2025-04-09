@@ -153,9 +153,64 @@ def get_status():
 @app.route('/alarms', methods=['GET'])
 def get_alarms():
     """Get all alarms."""
-    db = get_db()
-    alarms = db.get_all_alarms()
-    return jsonify([alarm.to_dict() for alarm in alarms])
+    # Use direct database connection for consistent label handling
+    try:
+        # Use the database_direct approach with custom SQL query
+        import os
+        import psycopg2
+        import psycopg2.extras
+        from models import Alarm
+        
+        logger.info("Getting all alarms with direct DB query")
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Query alarms ordered by time
+        cursor.execute('SELECT * FROM alarms ORDER BY time')
+        rows = cursor.fetchall()
+        
+        # Convert to Alarm objects
+        alarms = []
+        for row in rows:
+            alarm = Alarm()
+            
+            # Map fields
+            alarm.id = row['id']
+            alarm.time = row['time']
+            alarm.enabled = row['enabled']
+            alarm.repeating = row['repeating']
+            
+            # Days
+            days_str = row['days'] or '0000000'
+            alarm.days = [c == '1' for c in days_str]
+            
+            # Other fields
+            alarm.is_tts = row['is_tts']
+            alarm.message = row['message']
+            alarm.sound_path = row['sound_path']
+            
+            # Handle label field
+            label_value = row.get('label')
+            if label_value:
+                alarm.label = str(label_value)
+            else:
+                alarm.label = None
+                
+            alarms.append(alarm)
+            
+        cursor.close()
+        conn.close()
+        
+        # Convert to dict and return
+        return jsonify([alarm.to_dict() for alarm in alarms])
+        
+    except Exception as e:
+        logger.error(f"Error getting alarms with direct DB query: {e}")
+        
+        # Fall back to ORM method
+        db = get_db()
+        alarms = db.get_all_alarms()
+        return jsonify([alarm.to_dict() for alarm in alarms])
 
 @app.route('/alarms', methods=['POST'])
 def add_or_update_alarm():
@@ -286,6 +341,10 @@ def add_or_update_alarm():
             # Create alarm object
             alarm = Alarm.from_dict(data)
             
+            # Debug label value
+            logger.info(f"Alarm data from client: {data}")
+            logger.info(f"Label value before saving: {alarm.label}")
+            
             # Save to database
             if alarm_id:
                 # Set the ID on the alarm object
@@ -296,6 +355,10 @@ def add_or_update_alarm():
                 new_id = db.add_alarm(alarm)
                 alarm.id = new_id
                 logger.info(f"Alarm {new_id} added in background thread")
+                
+            # Debug: Retrieve and log the saved alarm to check if label is present
+            saved_alarm = db.get_alarm(alarm.id)
+            logger.info(f"Saved alarm retrieved from database: {saved_alarm.to_dict() if saved_alarm else 'None'}")
             
             # Schedule the alarm
             alarm_scheduler.schedule_alarm(alarm)
@@ -325,6 +388,37 @@ def add_or_update_alarm():
     except Exception as e:
         logger.error(f"Error initiating alarm creation/update: {str(e)}")
         return jsonify({"status": "error", "message": f"Failed to process alarm: {str(e)}"}), 500
+
+@app.route('/alarms/<int:alarm_id>', methods=['GET'])
+def get_alarm(alarm_id):
+    """Get a specific alarm by ID."""
+    # Add extra debug logging
+    logger.info(f"GET /alarms/{alarm_id} - Getting alarm from database")
+    
+    # Create a direct database connection and query - use the same approach as debug.py
+    try:
+        from database_direct import get_alarm_by_id
+        alarm = get_alarm_by_id(alarm_id)
+        
+        if alarm:
+            logger.info(f"Found alarm {alarm_id} with direct query, label: '{alarm.label}'")
+            result = alarm.to_dict()
+            logger.info(f"Direct alarm to_dict result: {result}")
+            return jsonify(result)
+        else:
+            return jsonify({"status": "error", "message": f"No alarm found with ID {alarm_id}"}), 404
+            
+    except Exception as e:
+        logger.error(f"Error using direct alarm query: {str(e)}")
+        
+        # Fall back to regular method
+        db = get_db()
+        alarm = db.get_alarm(alarm_id)
+        
+        if alarm:
+            return jsonify(alarm.to_dict())
+        else:
+            return jsonify({"status": "error", "message": f"No alarm found with ID {alarm_id}"}), 404
 
 @app.route('/alarms/<int:alarm_id>', methods=['DELETE'])
 def delete_alarm(alarm_id):

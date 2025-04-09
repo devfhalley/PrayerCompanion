@@ -83,7 +83,8 @@ def _get_db_connection():
             raise Exception("DATABASE_URL environment variable not set")
             
         # Create a new connection
-        conn = psycopg2.connect(db_url, cursor_factory=psycopg2.extras.DictCursor)
+        # Use RealDictCursor instead of DictCursor for better dictionary access
+        conn = psycopg2.connect(db_url, cursor_factory=psycopg2.extras.RealDictCursor)
         conn.autocommit = False
         
         # Yield the connection
@@ -128,25 +129,80 @@ class DatabaseWrapper:
             # Convert days list to string
             days_str = ''.join('1' if day else '0' for day in alarm.days)
             
-            cursor.execute('''
-            INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-            ''', (
-                alarm.time,
-                alarm.enabled,
-                alarm.repeating,
-                days_str,
-                alarm.is_tts,
-                alarm.message,
-                alarm.sound_path,
-                alarm.label
-            ))
+            # Log label value before saving to database
+            logger.info(f"Saving label to database: '{alarm.label}'")
             
+            # Prepare the label value for insertion
+            label_value = alarm.label if alarm.label else None
+            logger.info(f"Label value prepared for SQL insertion: {label_value}")
+            
+            # Verify it's a string if not None
+            if label_value is not None:
+                label_value = str(label_value)
+                logger.info(f"Converted label to string: {label_value}")
+                
+            # Execute the insertion as a direct SQL statement for debugging
+            try:
+                if label_value is None:
+                    logger.info("Executing SQL with NULL label value")
+                    cursor.execute('''
+                    INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, NULL)
+                    RETURNING id
+                    ''', (
+                        alarm.time,
+                        alarm.enabled,
+                        alarm.repeating,
+                        days_str,
+                        alarm.is_tts,
+                        alarm.message,
+                        alarm.sound_path,
+                    ))
+                else:
+                    logger.info(f"Executing SQL with label value: '{label_value}'")
+                    cursor.execute('''
+                    INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    ''', (
+                        alarm.time,
+                        alarm.enabled,
+                        alarm.repeating,
+                        days_str,
+                        alarm.is_tts,
+                        alarm.message,
+                        alarm.sound_path,
+                        label_value,
+                    ))
+            except Exception as e:
+                logger.error(f"Error inserting alarm: {str(e)}")
+                raise
+                
             result = cursor.fetchone()
             if result:
                 alarm.id = result[0]
                 logger.info(f"Added alarm with ID {alarm.id}")
+                
+                # Verify the data was inserted correctly by retrieving it again
+                try:
+                    # Direct SQL query as a fallback
+                    direct_cursor = conn.cursor()
+                    direct_cursor.execute('SELECT label FROM alarms WHERE id = %s', (alarm.id,))
+                    direct_result = direct_cursor.fetchone()
+                    if direct_result:
+                        label_from_db = direct_result['label']
+                        logger.info(f"Verification - label in database via direct query: '{label_from_db}'")
+                        
+                        # Explicitly update the label in the database if it's not matching
+                        if label_value is not None and (label_from_db is None or label_from_db != label_value):
+                            logger.warning(f"Label mismatch! Expected: '{label_value}', got: '{label_from_db}'. Fixing...")
+                            fix_cursor = conn.cursor()
+                            fix_cursor.execute('UPDATE alarms SET label = %s WHERE id = %s', (label_value, alarm.id))
+                            conn.commit()
+                            logger.info(f"Label fixed for alarm {alarm.id}")
+                except Exception as e:
+                    logger.error(f"Error in verification step: {str(e)}")
+                    
                 return alarm.id
             else:
                 logger.error("Failed to retrieve ID of newly inserted alarm")
@@ -164,6 +220,18 @@ class DatabaseWrapper:
             # Convert days list to string
             days_str = ''.join('1' if day else '0' for day in alarm.days)
             
+            # Log label value before updating in database
+            logger.info(f"Updating label in database: '{alarm.label}'")
+            
+            # Prepare the label value for update
+            label_value = alarm.label if alarm.label else None
+            logger.info(f"Label value prepared for SQL update: {label_value}")
+            
+            # Verify it's a string if not None
+            if label_value is not None:
+                label_value = str(label_value)
+                logger.info(f"Converted update label to string: {label_value}")
+                
             cursor.execute('''
             UPDATE alarms
             SET time = %s, enabled = %s, repeating = %s, days = %s, is_tts = %s, message = %s, sound_path = %s, label = %s
@@ -176,7 +244,7 @@ class DatabaseWrapper:
                 alarm.is_tts,
                 alarm.message,
                 alarm.sound_path,
-                alarm.label,
+                label_value,  # Use our prepared value
                 alarm.id
             ))
             
@@ -204,15 +272,67 @@ class DatabaseWrapper:
         Returns:
             Alarm object or None
         """
-        with _get_db_connection() as conn:
-            cursor = conn.cursor()
+        # Get the alarm using a direct SQL query
+        try:
+            logger.info(f"Retrieving alarm with ID {alarm_id}")
             
+            # Use direct database_direct.py approach which is known to work
+            import psycopg2.extras
+            
+            conn = _get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Get all fields including label
             cursor.execute('SELECT * FROM alarms WHERE id = %s', (alarm_id,))
             row = cursor.fetchone()
             
-            if row:
-                return self._row_to_alarm(row)
+            if not row:
+                logger.info(f"No alarm found with ID {alarm_id}")
+                cursor.close()
+                conn.close()
+                return None
+                
+            # Log all fields
+            logger.info(f"Row keys from database: {list(row.keys())}")
+            for key, value in row.items():
+                logger.info(f"Field '{key}': {value} (type: {type(value)})")
             
+            # Convert to alarm object - creating it directly from dict
+            alarm = Alarm()
+            
+            # Map fields
+            alarm.id = row['id']
+            alarm.time = row['time']
+            alarm.enabled = row['enabled']
+            alarm.repeating = row['repeating']
+            
+            # Days
+            days_str = row['days'] or '0000000'
+            alarm.days = [c == '1' for c in days_str]
+            
+            # Other fields
+            alarm.is_tts = row['is_tts']
+            alarm.message = row['message']
+            alarm.sound_path = row['sound_path']
+            
+            # Handle label specially
+            label_value = row.get('label')
+            if label_value:
+                alarm.label = str(label_value)
+                logger.info(f"Set label to: '{alarm.label}'")
+            else:
+                alarm.label = None
+                logger.info("Set label to None")
+            
+            # Close resources
+            cursor.close()
+            conn.close()
+            
+            logger.info(f"Successfully retrieved alarm {alarm_id}, label='{alarm.label}'")
+            return alarm
+            
+        except Exception as e:
+            logger.error(f"Error retrieving alarm {alarm_id}: {str(e)}")
             return None
     
     def get_all_alarms(self):
@@ -221,13 +341,38 @@ class DatabaseWrapper:
         Returns:
             List of Alarm objects
         """
+        alarms = []
+        
         with _get_db_connection() as conn:
-            cursor = conn.cursor()
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
-            cursor.execute('SELECT * FROM alarms ORDER BY time')
-            rows = cursor.fetchall()
+            dict_cursor.execute('SELECT * FROM alarms ORDER BY time')
+            rows = dict_cursor.fetchall()
             
-            return [self._row_to_alarm(row) for row in rows]
+            for row_dict in rows:
+                # Create the alarm object directly from the dictionary
+                alarm = Alarm()
+                alarm.id = row_dict.get('id')
+                alarm.time = row_dict.get('time')
+                alarm.enabled = row_dict.get('enabled')
+                alarm.repeating = row_dict.get('repeating')
+                
+                # Convert days string to boolean list
+                days_str = row_dict.get('days') or '0000000'
+                alarm.days = [c == '1' for c in days_str]
+                
+                # Other fields
+                alarm.is_tts = row_dict.get('is_tts')
+                alarm.message = row_dict.get('message')
+                alarm.sound_path = row_dict.get('sound_path')
+                
+                # Label handling
+                label_value = row_dict.get('label')
+                alarm.label = str(label_value) if label_value else None
+                
+                alarms.append(alarm)
+                
+            return alarms
     
     def get_enabled_alarms(self):
         """Get all enabled alarms.
@@ -235,13 +380,38 @@ class DatabaseWrapper:
         Returns:
             List of enabled Alarm objects
         """
+        alarms = []
+        
         with _get_db_connection() as conn:
-            cursor = conn.cursor()
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
-            cursor.execute('SELECT * FROM alarms WHERE enabled = TRUE ORDER BY time')
-            rows = cursor.fetchall()
+            dict_cursor.execute('SELECT * FROM alarms WHERE enabled = TRUE ORDER BY time')
+            rows = dict_cursor.fetchall()
             
-            return [self._row_to_alarm(row) for row in rows]
+            for row_dict in rows:
+                # Create the alarm object directly from the dictionary
+                alarm = Alarm()
+                alarm.id = row_dict.get('id')
+                alarm.time = row_dict.get('time', 0)
+                alarm.enabled = True  # We know it's enabled from the query
+                alarm.repeating = row_dict.get('repeating', False)
+                
+                # Convert days string to boolean list
+                days_str = row_dict.get('days') or '0000000'
+                alarm.days = [c == '1' for c in days_str]
+                
+                # Other fields
+                alarm.is_tts = row_dict.get('is_tts', False)
+                alarm.message = row_dict.get('message')
+                alarm.sound_path = row_dict.get('sound_path')
+                
+                # Label handling
+                label_value = row_dict.get('label')
+                alarm.label = str(label_value) if label_value else None
+                
+                alarms.append(alarm)
+                
+            return alarms
     
     def get_one_time_alarms_for_today(self):
         """Get one-time alarms for today.
@@ -249,8 +419,10 @@ class DatabaseWrapper:
         Returns:
             List of one-time Alarm objects for today
         """
+        alarms = []
+        
         with _get_db_connection() as conn:
-            cursor = conn.cursor()
+            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
             # Get start and end of today
             today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -260,15 +432,38 @@ class DatabaseWrapper:
             start_time = int(today.timestamp() * 1000)
             end_time = int(tomorrow.timestamp() * 1000)
             
-            cursor.execute('''
+            dict_cursor.execute('''
             SELECT * FROM alarms 
             WHERE enabled = TRUE AND repeating = FALSE AND time >= %s AND time < %s
             ORDER BY time
             ''', (start_time, end_time))
             
-            rows = cursor.fetchall()
+            rows = dict_cursor.fetchall()
             
-            return [self._row_to_alarm(row) for row in rows]
+            for row_dict in rows:
+                # Create the alarm object directly from the dictionary
+                alarm = Alarm()
+                alarm.id = row_dict.get('id')
+                alarm.time = row_dict.get('time', 0)
+                alarm.enabled = True  # We know it's enabled from the query
+                alarm.repeating = False  # We know it's not repeating from the query
+                
+                # Convert days string to boolean list
+                days_str = row_dict.get('days') or '0000000'
+                alarm.days = [c == '1' for c in days_str]
+                
+                # Other fields
+                alarm.is_tts = row_dict.get('is_tts', False)
+                alarm.message = row_dict.get('message')
+                alarm.sound_path = row_dict.get('sound_path')
+                
+                # Label handling
+                label_value = row_dict.get('label')
+                alarm.label = str(label_value) if label_value else None
+                
+                alarms.append(alarm)
+                
+            return alarms
     
     def add_prayer_time(self, prayer_time):
         """Add a prayer time to the database.
@@ -409,28 +604,91 @@ class DatabaseWrapper:
         Returns:
             Alarm object
         """
+        # Use the simplified, tested version from database_direct.py
         alarm = Alarm()
         
         # Check if row is None before proceeding
         if row is None:
             return alarm
             
-        alarm.id = row['id']
-        alarm.time = row['time']
-        alarm.enabled = row['enabled']
-        alarm.repeating = row['repeating']
-        
-        # Convert days string to boolean list
-        days_str = row['days'] or '0000000'
-        alarm.days = [c == '1' for c in days_str]
-        
-        alarm.is_tts = row['is_tts']
-        alarm.message = row['message']
-        alarm.sound_path = row['sound_path']
-        
-        # Check if label column exists in the row
-        if 'label' in row:
-            alarm.label = row['label']
+        try:
+            # First check what type of row we're dealing with
+            row_dict = None
+            
+            # Support different cursor types (RealDictCursor or regular cursor)
+            if hasattr(row, 'items'):  # It's a dict-like object
+                row_dict = row  # It's already a dict-like object
+                logger.info(f"Row is a dict-like object: {type(row)}")
+            else:  # It's likely a tuple
+                # Convert tuple to dict based on cursor description
+                logger.info(f"Row is a tuple-like object: {type(row)}")
+                
+                # Get the cursor description if available
+                if hasattr(row, 'cursor') and hasattr(row.cursor, 'description'):
+                    # This is a cleaner way to get column names
+                    columns = [desc[0] for desc in row.cursor.description]
+                    row_dict = dict(zip(columns, row))
+                    logger.info(f"Converted tuple to dict using cursor description")
+                else:
+                    # Hardcoded column order based on schema - risky but last resort
+                    columns = ['id', 'time', 'enabled', 'repeating', 'days', 'is_tts', 'message', 'sound_path', 'label']
+                    
+                    # Check if we need to truncate the list of columns
+                    if len(row) < len(columns):
+                        columns = columns[:len(row)]
+                        
+                    row_dict = dict(zip(columns, row))
+                    logger.info(f"Converted tuple to dict using hardcoded column names: {columns}")
+            
+            # Now use the dictionary to populate the alarm object
+            if row_dict is not None:
+                # Basic fields
+                alarm.id = row_dict.get('id')
+                alarm.time = row_dict.get('time', 0)
+                alarm.enabled = row_dict.get('enabled', False)
+                alarm.repeating = row_dict.get('repeating', False)
+                
+                # Convert days string to boolean list
+                days_str = row_dict.get('days', '0000000') or '0000000'
+                alarm.days = [c == '1' for c in days_str]
+                
+                # Other fields
+                alarm.is_tts = row_dict.get('is_tts', False)
+                alarm.message = row_dict.get('message')
+                alarm.sound_path = row_dict.get('sound_path')
+                
+                # Label handling - carefully extract and convert
+                label_value = row_dict.get('label')
+                logger.info(f"Raw label value from dict: {label_value}, type: {type(label_value)}")
+                
+                if label_value is None or label_value == '':
+                    alarm.label = None
+                    logger.info("Setting label to None (null)")
+                else:
+                    alarm.label = str(label_value)  # Ensure it's a string
+                    logger.info(f"Setting label to: '{alarm.label}'")
+            else:
+                logger.error("Failed to convert row to dictionary")
+        except Exception as e:
+            logger.error(f"Error in _row_to_alarm: {str(e)}")
+            
+        # Fallback: If we couldn't get the label properly, query it directly
+        if alarm.id is not None and alarm.label is None:
+            try:
+                # Last resort: direct query
+                with _get_db_connection() as conn:
+                    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    cursor.execute('SELECT label FROM alarms WHERE id = %s', (alarm.id,))
+                    label_row = cursor.fetchone()
+                    
+                    if label_row and label_row.get('label'):
+                        alarm.label = str(label_row.get('label'))
+                        logger.info(f"Set label via direct query: '{alarm.label}'")
+            except Exception as e:
+                logger.error(f"Error in fallback label query: {str(e)}")
+                
+        # Final log of the result
+        logger.info(f"Final alarm object: id={alarm.id}, label={alarm.label}")
         
         return alarm
     
