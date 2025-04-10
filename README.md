@@ -13,6 +13,10 @@ The Prayer Alarm System provides the following features:
 - **Tahrim Sound System**: Plays customizable tahrim sounds after each pre-adhan announcement
 - **Custom Alarm System**: Set alarms for specific times/days with repeat options and custom sounds (MP3 files or text-to-speech)
 - **Push-to-Talk**: Speak through the Android app and have your voice played through the Raspberry Pi speaker in real-time
+- **Murattal Player**: Play Quranic recitations with a professional interface including playback controls and track management
+- **YouTube Player**: Display and manage YouTube videos on the homepage with full CRUD operations and drag-and-drop reordering
+- **Global Volume Control**: Adjust system volume from any page with a sticky volume slider
+- **Real-time WebSocket Communication**: Get instant prayer time notifications and status updates
 
 ## Project Structure
 
@@ -64,19 +68,47 @@ The Android application serves as a controller with the following capabilities:
 
 The Raspberry Pi server exposes the following API endpoints:
 
+### Prayer and Alarm Management
 - `GET /status` - Check server status
 - `GET /alarms` - Get all alarms
 - `POST /alarms` - Add or update an alarm
 - `DELETE /alarms/{id}` - Delete an alarm
 - `POST /alarms/{id}/disable` - Disable an alarm
+- `POST /alarm/{id}/test` - Test play a specific alarm
 - `GET /prayer-times` - Get prayer times for a specific date
 - `POST /prayer-times/refresh` - Force refresh of prayer times from API
+
+### Pre-Adhan Announcement System
 - `POST /pre-adhan/10-min` - Set custom 10-minute pre-adhan sound for a prayer
 - `POST /pre-adhan/5-min` - Set custom 5-minute pre-adhan sound for a prayer
 - `POST /pre-adhan/tahrim` - Set custom tahrim sound for a prayer
 - `POST /pre-adhan/test` - Test pre-adhan or tahrim sounds
+
+### Audio Control
 - `POST /stop-audio` - Stop any playing audio
-- `WebSocket /ws` - WebSocket endpoint for push-to-talk
+- `GET /adhan-sounds` - Get list of available adhan sounds
+- `POST /adhan/upload` - Upload a new adhan sound
+- `POST /adhan/default` - Set default adhan sound
+- `POST /adhan/prayer` - Set custom adhan for specific prayer
+- `POST /test-adhan` - Test play adhan sound
+- `GET /volume` - Get current system volume
+- `POST /volume` - Update system volume
+
+### Murattal Player
+- `GET /murattal` - Get list of available Murattal files
+- `POST /murattal/play` - Play a Murattal file
+- `POST /murattal/upload` - Upload a new Murattal file
+
+### YouTube Video Management
+- `GET /youtube-videos` - Get all YouTube videos
+- `GET /youtube-videos/enabled` - Get enabled YouTube videos
+- `POST /youtube-videos` - Add a new YouTube video
+- `PUT /youtube-videos/{id}` - Update an existing YouTube video
+- `DELETE /youtube-videos/{id}` - Delete a YouTube video
+- `POST /youtube-videos/reorder` - Reorder YouTube videos
+
+### Real-time Communication
+- `WebSocket /ws` - WebSocket endpoint for push-to-talk and real-time notifications
 
 ## Setup and Installation
 
@@ -334,3 +366,45 @@ conn.close()
 ```
 
 Remember to always close your database connections properly to avoid connection leaks.
+
+## Recent Feature Additions
+
+### Pre-Adhan Announcement System
+
+The system now includes a comprehensive pre-adhan announcement feature that allows users to configure custom sounds to play before each prayer time:
+
+- **10-Minute Pre-Adhan Announcements**: Customizable sounds that play 10 minutes before each prayer
+- **5-Minute Pre-Adhan Announcements**: Customizable sounds that play 5 minutes before each prayer
+- **Tahrim Sounds**: Sounds that play after each pre-adhan announcement
+- **Per-Prayer Configuration**: Each prayer time can have different announcement sounds
+- **Test Functionality**: Preview buttons to test each sound before saving
+
+### Murattal Player Enhancements
+
+The Murattal player has been enhanced with a professional interface that includes:
+
+- **Improved Playback Controls**: Play, pause, and stop with visual feedback
+- **Track Selection**: Clearer track selection with visual highlighting
+- **Track Title Display**: Improved display of track information
+- **Upload Capability**: Easily add new Murattal files to the collection
+
+### YouTube Video Integration
+
+The system now allows displaying YouTube videos on the home page:
+
+- **Full CRUD Operations**: Add, edit, delete, and enable/disable videos
+- **Drag-and-Drop Reordering**: Change the display order of videos with intuitive drag-and-drop
+- **URL Validation**: Automatic extraction of video IDs from YouTube URLs
+- **Responsive Display**: Videos are displayed responsively on the home page
+
+### Global Volume Control
+
+A global volume control has been added:
+
+- **Persistent Volume Slider**: Accessible from all pages
+- **Real-time Adjustment**: Instantly changes system volume
+- **Visual Feedback**: Shows current volume level
+
+## User Manual
+
+For detailed instructions on how to use all features of the Prayer Alarm System, please refer to the [User Manual](USER_MANUAL.md).
