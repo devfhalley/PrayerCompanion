@@ -1154,6 +1154,168 @@ def reorder_youtube_videos():
         logger.error(f"Error reordering YouTube videos: {e}")
         return jsonify({"status": "error", "message": f"Error reordering YouTube videos: {str(e)}"}), 500
 
+# Pre-Adhan and Tahrim sound routes
+@app.route('/pre-adhan/10-min', methods=['POST'])
+def set_pre_adhan_10_min():
+    """Set a 10-minute pre-adhan announcement sound for a specific prayer."""
+    data = request.json
+    prayer_name = data.get('prayer_name')
+    sound_path = data.get('sound_path')
+    
+    if not prayer_name:
+        return jsonify({"status": "error", "message": "Prayer name is required"}), 400
+    
+    # Empty sound path is allowed (to disable the announcement)
+    if sound_path and not os.path.exists(sound_path):
+        return jsonify({"status": "error", "message": "Invalid sound file path"}), 400
+    
+    try:
+        db = get_db()
+        
+        # Get prayer times for today
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        prayer_times = db.get_prayer_times_by_date(date_str)
+        updated = False
+        
+        for prayer in prayer_times:
+            if prayer.name == prayer_name:
+                prayer.pre_adhan_10_min = sound_path
+                db.update_prayer_time(prayer)
+                updated = True
+                break
+        
+        if not updated:
+            return jsonify({"status": "error", "message": "Prayer not found"}), 404
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"10-minute pre-adhan sound for {prayer_name} updated"
+        })
+    except Exception as e:
+        logger.error(f"Error setting 10-minute pre-adhan sound: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/pre-adhan/5-min', methods=['POST'])
+def set_pre_adhan_5_min():
+    """Set a 5-minute pre-adhan announcement sound for a specific prayer."""
+    data = request.json
+    prayer_name = data.get('prayer_name')
+    sound_path = data.get('sound_path')
+    
+    if not prayer_name:
+        return jsonify({"status": "error", "message": "Prayer name is required"}), 400
+    
+    # Empty sound path is allowed (to disable the announcement)
+    if sound_path and not os.path.exists(sound_path):
+        return jsonify({"status": "error", "message": "Invalid sound file path"}), 400
+    
+    try:
+        db = get_db()
+        
+        # Get prayer times for today
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        prayer_times = db.get_prayer_times_by_date(date_str)
+        updated = False
+        
+        for prayer in prayer_times:
+            if prayer.name == prayer_name:
+                prayer.pre_adhan_5_min = sound_path
+                db.update_prayer_time(prayer)
+                updated = True
+                break
+        
+        if not updated:
+            return jsonify({"status": "error", "message": "Prayer not found"}), 404
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"5-minute pre-adhan sound for {prayer_name} updated"
+        })
+    except Exception as e:
+        logger.error(f"Error setting 5-minute pre-adhan sound: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/pre-adhan/tahrim', methods=['POST'])
+def set_tahrim_sound():
+    """Set a tahrim sound for a specific prayer."""
+    data = request.json
+    prayer_name = data.get('prayer_name')
+    sound_path = data.get('sound_path')
+    
+    if not prayer_name:
+        return jsonify({"status": "error", "message": "Prayer name is required"}), 400
+    
+    # Empty sound path is allowed (to disable the tahrim sound)
+    if sound_path and not os.path.exists(sound_path):
+        return jsonify({"status": "error", "message": "Invalid sound file path"}), 400
+    
+    try:
+        db = get_db()
+        
+        # Get prayer times for today
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        prayer_times = db.get_prayer_times_by_date(date_str)
+        updated = False
+        
+        for prayer in prayer_times:
+            if prayer.name == prayer_name:
+                prayer.tahrim_sound = sound_path
+                db.update_prayer_time(prayer)
+                updated = True
+                break
+        
+        if not updated:
+            return jsonify({"status": "error", "message": "Prayer not found"}), 404
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"Tahrim sound for {prayer_name} updated"
+        })
+    except Exception as e:
+        logger.error(f"Error setting tahrim sound: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/pre-adhan/test', methods=['POST'])
+def test_pre_adhan_sound():
+    """Test a pre-adhan or tahrim sound."""
+    data = request.json
+    prayer_id = data.get('prayer_id')
+    prayer_name = data.get('prayer_name')
+    sound_type = data.get('sound_type')  # 'pre_adhan_10_min', 'pre_adhan_5_min', or 'tahrim_sound'
+    
+    if not prayer_name or not sound_type:
+        return jsonify({"status": "error", "message": "Prayer name and sound type are required"}), 400
+    
+    try:
+        db = get_db()
+        
+        # Get prayer times for today
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        prayer_times = db.get_prayer_times_by_date(date_str)
+        
+        for prayer in prayer_times:
+            if prayer.name == prayer_name:
+                if sound_type == 'pre_adhan_10_min' and prayer.pre_adhan_10_min:
+                    audio_player.play_file(prayer.pre_adhan_10_min)
+                    return jsonify({"status": "success", "message": f"Playing 10-minute pre-adhan sound for {prayer_name}"})
+                elif sound_type == 'pre_adhan_5_min' and prayer.pre_adhan_5_min:
+                    audio_player.play_file(prayer.pre_adhan_5_min)
+                    return jsonify({"status": "success", "message": f"Playing 5-minute pre-adhan sound for {prayer_name}"})
+                elif sound_type == 'tahrim_sound' and prayer.tahrim_sound:
+                    audio_player.play_file(prayer.tahrim_sound)
+                    return jsonify({"status": "success", "message": f"Playing tahrim sound for {prayer_name}"})
+                else:
+                    return jsonify({"status": "error", "message": f"No {sound_type.replace('_', ' ')} set for {prayer_name}"}), 404
+        
+        return jsonify({"status": "error", "message": "Prayer not found"}), 404
+    except Exception as e:
+        logger.error(f"Error testing pre-adhan sound: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 def start_schedulers():
     """Start the prayer and alarm schedulers."""
     logger.info("Starting schedulers...")

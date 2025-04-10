@@ -169,7 +169,8 @@ class Alarm:
 class PrayerTime:
     """Prayer time model."""
     
-    def __init__(self, name=None, time=None, enabled=True, custom_sound=None, date_str=None):
+    def __init__(self, name=None, time=None, enabled=True, custom_sound=None, date_str=None, 
+                 pre_adhan_10_min=None, pre_adhan_5_min=None, tahrim_sound=None):
         """Initialize a new PrayerTime.
         
         Args:
@@ -178,6 +179,9 @@ class PrayerTime:
             enabled: Whether the prayer notification is enabled
             custom_sound: Path to custom sound file
             date_str: Date string in YYYY-MM-DD format
+            pre_adhan_10_min: Path to 10-minute pre-adhan announcement sound
+            pre_adhan_5_min: Path to 5-minute pre-adhan announcement sound
+            tahrim_sound: Path to tahrim sound to play after announcements
         """
         self.id = None
         self.name = name
@@ -189,6 +193,11 @@ class PrayerTime:
             self.date_str = time.strftime('%Y-%m-%d')
         else:
             self.date_str = date_str
+        
+        # Pre-adhan announcement sound files
+        self.pre_adhan_10_min = pre_adhan_10_min
+        self.pre_adhan_5_min = pre_adhan_5_min
+        self.tahrim_sound = tahrim_sound
     
     def to_dict(self):
         """Convert the PrayerTime to a dictionary.
@@ -203,7 +212,10 @@ class PrayerTime:
             'time_str': self.time.strftime('%H:%M') if self.time else None,
             'date_str': self.date_str,
             'enabled': self.enabled,
-            'custom_sound': self.custom_sound
+            'custom_sound': self.custom_sound,
+            'pre_adhan_10_min': self.pre_adhan_10_min,
+            'pre_adhan_5_min': self.pre_adhan_5_min,
+            'tahrim_sound': self.tahrim_sound
         }
 
 

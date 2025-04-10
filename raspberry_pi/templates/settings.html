@@ -48,6 +48,74 @@
 
 <div class="card">
     <div class="card-header">
+        <h2>Pre-Adhan and Tahrim Sound Settings</h2>
+    </div>
+    <div class="card-content">
+        <p>Configure sounds to play before the adhan and tahrim sounds that follow announcements</p>
+        
+        <h3>Pre-Adhan and Tahrim Sounds for Each Prayer</h3>
+        <div class="prayer-adhan-settings">
+            {% for prayer in prayers %}
+            <div class="form-group">
+                <h4>{{ prayer.name }} Prayer</h4>
+                
+                <!-- 10-minute pre-adhan announcement -->
+                <div class="sound-setting-group">
+                    <label for="pre-adhan-10-{{ prayer.name|lower }}">10-minute Pre-Adhan Sound</label>
+                    <div class="sound-selector">
+                        <select id="pre-adhan-10-{{ prayer.name|lower }}" class="form-control pre-adhan-10-selector" data-prayer="{{ prayer.name }}">
+                            <option value="">None (No 10-minute announcement)</option>
+                            {% for sound in adhan_sounds %}
+                            <option value="{{ sound.path }}" {% if sound.path == prayer.pre_adhan_10_min %}selected{% endif %}>{{ sound.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-secondary" onclick="testPreAdhan10({{ prayer.id }}, '{{ prayer.name }}')">
+                            <i class="fas fa-play"></i> Test
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 5-minute pre-adhan announcement -->
+                <div class="sound-setting-group">
+                    <label for="pre-adhan-5-{{ prayer.name|lower }}">5-minute Pre-Adhan Sound</label>
+                    <div class="sound-selector">
+                        <select id="pre-adhan-5-{{ prayer.name|lower }}" class="form-control pre-adhan-5-selector" data-prayer="{{ prayer.name }}">
+                            <option value="">None (No 5-minute announcement)</option>
+                            {% for sound in adhan_sounds %}
+                            <option value="{{ sound.path }}" {% if sound.path == prayer.pre_adhan_5_min %}selected{% endif %}>{{ sound.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-secondary" onclick="testPreAdhan5({{ prayer.id }}, '{{ prayer.name }}')">
+                            <i class="fas fa-play"></i> Test
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Tahrim sound -->
+                <div class="sound-setting-group">
+                    <label for="tahrim-{{ prayer.name|lower }}">Tahrim Sound After Announcement</label>
+                    <div class="sound-selector">
+                        <select id="tahrim-{{ prayer.name|lower }}" class="form-control tahrim-selector" data-prayer="{{ prayer.name }}">
+                            <option value="">None (No tahrim sound)</option>
+                            {% for sound in adhan_sounds %}
+                            <option value="{{ sound.path }}" {% if sound.path == prayer.tahrim_sound %}selected{% endif %}>{{ sound.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-secondary" onclick="testTahrim({{ prayer.id }}, '{{ prayer.name }}')">
+                            <i class="fas fa-play"></i> Test
+                        </button>
+                    </div>
+                </div>
+                
+                <hr>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
         <h2>Upload New Adhan Sound</h2>
     </div>
     <div class="card-content">
@@ -227,6 +295,33 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Handle 10-minute pre-adhan sound selection
+    document.querySelectorAll('.pre-adhan-10-selector').forEach(function(selector) {
+        selector.addEventListener('change', function() {
+            const prayer = this.getAttribute('data-prayer');
+            const sound = this.value;
+            setPreAdhan10ForPrayer(prayer, sound);
+        });
+    });
+    
+    // Handle 5-minute pre-adhan sound selection
+    document.querySelectorAll('.pre-adhan-5-selector').forEach(function(selector) {
+        selector.addEventListener('change', function() {
+            const prayer = this.getAttribute('data-prayer');
+            const sound = this.value;
+            setPreAdhan5ForPrayer(prayer, sound);
+        });
+    });
+    
+    // Handle tahrim sound selection
+    document.querySelectorAll('.tahrim-selector').forEach(function(selector) {
+        selector.addEventListener('change', function() {
+            const prayer = this.getAttribute('data-prayer');
+            const sound = this.value;
+            setTahrimForPrayer(prayer, sound);
+        });
+    });
+    
     // Location settings
     document.getElementById('save-location').addEventListener('click', saveLocationSettings);
     document.getElementById('refresh-prayer-times').addEventListener('click', refreshPrayerTimes);
@@ -327,6 +422,165 @@ function setAdhanForPrayer(prayer, soundPath) {
     .catch(error => {
         console.error('Error:', error);
         showNotification('Error updating adhan for prayer', 'error');
+    });
+}
+
+// Function to set 10-minute pre-adhan sound for a specific prayer
+function setPreAdhan10ForPrayer(prayer, soundPath) {
+    fetch('/pre-adhan/10-min', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            prayer_name: prayer,
+            sound_path: soundPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`10-minute pre-adhan sound for ${prayer} updated`, 'success');
+        } else {
+            showNotification('Error updating pre-adhan sound', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error updating pre-adhan sound', 'error');
+    });
+}
+
+// Function to set 5-minute pre-adhan sound for a specific prayer
+function setPreAdhan5ForPrayer(prayer, soundPath) {
+    fetch('/pre-adhan/5-min', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            prayer_name: prayer,
+            sound_path: soundPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`5-minute pre-adhan sound for ${prayer} updated`, 'success');
+        } else {
+            showNotification('Error updating pre-adhan sound', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error updating pre-adhan sound', 'error');
+    });
+}
+
+// Function to set tahrim sound for a specific prayer
+function setTahrimForPrayer(prayer, soundPath) {
+    fetch('/pre-adhan/tahrim', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            prayer_name: prayer,
+            sound_path: soundPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`Tahrim sound for ${prayer} updated`, 'success');
+        } else {
+            showNotification('Error updating tahrim sound', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error updating tahrim sound', 'error');
+    });
+}
+
+// Function to test 10-minute pre-adhan sound
+function testPreAdhan10(prayerId, prayerName) {
+    fetch('/pre-adhan/test', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            prayer_id: prayerId,
+            prayer_name: prayerName,
+            sound_type: 'pre_adhan_10_min'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`Playing 10-minute pre-adhan sound for ${prayerName}`, 'success');
+        } else {
+            showNotification('Error playing pre-adhan sound', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error playing pre-adhan sound', 'error');
+    });
+}
+
+// Function to test 5-minute pre-adhan sound
+function testPreAdhan5(prayerId, prayerName) {
+    fetch('/pre-adhan/test', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            prayer_id: prayerId,
+            prayer_name: prayerName,
+            sound_type: 'pre_adhan_5_min'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`Playing 5-minute pre-adhan sound for ${prayerName}`, 'success');
+        } else {
+            showNotification('Error playing pre-adhan sound', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error playing pre-adhan sound', 'error');
+    });
+}
+
+// Function to test tahrim sound
+function testTahrim(prayerId, prayerName) {
+    fetch('/pre-adhan/test', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            prayer_id: prayerId,
+            prayer_name: prayerName,
+            sound_type: 'tahrim_sound'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`Playing tahrim sound for ${prayerName}`, 'success');
+        } else {
+            showNotification('Error playing tahrim sound', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error playing tahrim sound', 'error');
     });
 }
 

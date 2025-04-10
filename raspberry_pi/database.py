@@ -321,15 +321,21 @@ class DatabaseWrapper:
             cursor = conn.cursor()
             
             cursor.execute('''
-            INSERT INTO prayer_times (name, time, enabled, custom_sound, date_str)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO prayer_times (
+                name, time, enabled, custom_sound, date_str, 
+                pre_adhan_10_min, pre_adhan_5_min, tahrim_sound
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             ''', (
                 prayer_time.name,
                 prayer_time.time,
                 prayer_time.enabled,
                 prayer_time.custom_sound,
-                prayer_time.date_str
+                prayer_time.date_str,
+                prayer_time.pre_adhan_10_min,
+                prayer_time.pre_adhan_5_min,
+                prayer_time.tahrim_sound
             ))
             
             result = cursor.fetchone()
@@ -355,7 +361,8 @@ class DatabaseWrapper:
             
             cursor.execute('''
             UPDATE prayer_times
-            SET name = %s, time = %s, enabled = %s, custom_sound = %s, date_str = %s
+            SET name = %s, time = %s, enabled = %s, custom_sound = %s, date_str = %s,
+                pre_adhan_10_min = %s, pre_adhan_5_min = %s, tahrim_sound = %s
             WHERE id = %s
             ''', (
                 prayer_time.name,
@@ -363,6 +370,9 @@ class DatabaseWrapper:
                 prayer_time.enabled,
                 prayer_time.custom_sound,
                 prayer_time.date_str,
+                prayer_time.pre_adhan_10_min,
+                prayer_time.pre_adhan_5_min,
+                prayer_time.tahrim_sound,
                 prayer_time.id
             ))
     
@@ -579,6 +589,16 @@ class DatabaseWrapper:
             prayer_time.date_str = row['date_str']
         elif prayer_time.time:
             prayer_time.date_str = prayer_time.time.strftime('%Y-%m-%d')
+        
+        # Add pre-adhan announcement sound paths if they exist
+        if 'pre_adhan_10_min' in row:
+            prayer_time.pre_adhan_10_min = row['pre_adhan_10_min']
+        
+        if 'pre_adhan_5_min' in row:
+            prayer_time.pre_adhan_5_min = row['pre_adhan_5_min']
+        
+        if 'tahrim_sound' in row:
+            prayer_time.tahrim_sound = row['tahrim_sound']
         
         return prayer_time
         

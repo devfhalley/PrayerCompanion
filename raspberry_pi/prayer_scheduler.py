@@ -159,7 +159,7 @@ class PrayerScheduler:
         self.fetch_prayer_times()
     
     def _check_upcoming_prayers(self):
-        """Check for upcoming prayers and play adhan if it's time."""
+        """Check for upcoming prayers and play pre-adhan announcements and adhan when it's time."""
         with self.lock:
             now = datetime.now()
             
@@ -169,10 +169,43 @@ class PrayerScheduler:
             if not next_prayer:
                 return
             
-            # Check if it's time for adhan (within 1 minute)
+            # Calculate time difference in seconds until prayer time
             time_diff = (next_prayer.time - now).total_seconds()
             
-            if 0 <= time_diff <= 60:  # Within 60 seconds
+            # Check for 10-minute pre-adhan announcement
+            if 595 <= time_diff <= 605:  # Around 10 minutes before prayer time (600 seconds ± 5 seconds)
+                logger.info(f"10-minute pre-adhan check for {next_prayer.name}")
+                if hasattr(next_prayer, 'pre_adhan_10_min') and next_prayer.pre_adhan_10_min:
+                    logger.info(f"Playing 10-minute pre-adhan announcement for {next_prayer.name}")
+                    self.audio_player.play_file(next_prayer.pre_adhan_10_min, priority=self.audio_player.PRIORITY_ADHAN)
+                    
+                    # Play tahrim sound after the announcement if configured
+                    if hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound:
+                        logger.info(f"Playing tahrim sound after 10-minute announcement")
+                        time.sleep(1)  # Small delay to ensure sounds don't overlap
+                        self.audio_player.play_file(next_prayer.tahrim_sound, priority=self.audio_player.PRIORITY_ADHAN)
+                    
+                    # Broadcast pre-adhan message to WebSocket clients
+                    self._broadcast_prayer_message('pre_adhan_10_min', next_prayer)
+            
+            # Check for 5-minute pre-adhan announcement
+            elif 295 <= time_diff <= 305:  # Around 5 minutes before prayer time (300 seconds ± 5 seconds)
+                logger.info(f"5-minute pre-adhan check for {next_prayer.name}")
+                if hasattr(next_prayer, 'pre_adhan_5_min') and next_prayer.pre_adhan_5_min:
+                    logger.info(f"Playing 5-minute pre-adhan announcement for {next_prayer.name}")
+                    self.audio_player.play_file(next_prayer.pre_adhan_5_min, priority=self.audio_player.PRIORITY_ADHAN)
+                    
+                    # Play tahrim sound after the announcement if configured
+                    if hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound:
+                        logger.info(f"Playing tahrim sound after 5-minute announcement")
+                        time.sleep(1)  # Small delay to ensure sounds don't overlap
+                        self.audio_player.play_file(next_prayer.tahrim_sound, priority=self.audio_player.PRIORITY_ADHAN)
+                    
+                    # Broadcast pre-adhan message to WebSocket clients
+                    self._broadcast_prayer_message('pre_adhan_5_min', next_prayer)
+            
+            # Check if it's time for adhan (within 1 minute)
+            elif 0 <= time_diff <= 60:  # Within 60 seconds
                 logger.info(f"It's time for {next_prayer.name} prayer")
                 
                 # Play the adhan with highest priority
@@ -188,14 +221,23 @@ class PrayerScheduler:
                     self.audio_player.play_tts(f"It's time for {next_prayer.name} prayer", priority=self.audio_player.PRIORITY_ADHAN)
                 
                 # Broadcast adhan playing message to WebSocket clients
-                try:
-                    from websocket_server import broadcast_message
-                    import json
-                    message = {
-                        'type': 'adhan_playing',
-                        'prayer': next_prayer.name,
-                        'time': next_prayer.time.strftime('%H:%M')
-                    }
-                    broadcast_message(json.dumps(message))
-                except Exception as e:
-                    logger.warning(f"Error broadcasting adhan message: {str(e)}")
+                self._broadcast_prayer_message('adhan_playing', next_prayer)
+    
+    def _broadcast_prayer_message(self, message_type, prayer):
+        """Broadcast prayer-related messages to WebSocket clients.
+        
+        Args:
+            message_type: Type of message ('adhan_playing', 'pre_adhan_10_min', 'pre_adhan_5_min')
+            prayer: PrayerTime object
+        """
+        try:
+            from websocket_server import broadcast_message
+            import json
+            message = {
+                'type': message_type,
+                'prayer': prayer.name,
+                'time': prayer.time.strftime('%H:%M')
+            }
+            broadcast_message(json.dumps(message))
+        except Exception as e:
+            logger.warning(f"Error broadcasting prayer message: {str(e)}")
