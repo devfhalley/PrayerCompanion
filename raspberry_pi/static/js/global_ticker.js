@@ -35,7 +35,7 @@ function initGlobalTicker() {
         // Add ticker to body
         document.body.appendChild(tickerState.tickerElement);
         
-        // Add CSS for the ticker
+        // Add CSS for the ticker - using orange adhan ticker style
         const style = document.createElement('style');
         style.textContent = `
             .global-ticker {
@@ -43,12 +43,11 @@ function initGlobalTicker() {
                 bottom: 0;
                 left: 0;
                 width: 100%;
-                background-color: rgba(0, 0, 0, 0.7);
+                background-color: var(--accent-color, #FF9800); /* Orange color from accent-color variable */
                 color: white;
-                padding: 10px 0;
+                padding: 10px 15px;
                 z-index: 9999;
-                text-align: center;
-                font-size: 16px;
+                overflow: hidden;
                 box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.2);
                 transition: transform 0.5s ease;
             }
@@ -58,19 +57,18 @@ function initGlobalTicker() {
             }
             
             .global-ticker .ticker-content {
+                display: inline-block;
                 white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                animation: ticker-scroll 20s linear infinite;
-                padding: 0 20px;
+                animation: ticker-slide 20s linear infinite;
+                padding-right: 50px;
             }
             
             .adhan-playing .global-ticker {
-                background-color: #4CAF50;
+                background-color: var(--error-color, #F44336); /* Red color during adhan */
                 font-weight: bold;
             }
             
-            @keyframes ticker-scroll {
+            @keyframes ticker-slide {
                 0% { transform: translateX(100%); }
                 100% { transform: translateX(-100%); }
             }
@@ -78,7 +76,7 @@ function initGlobalTicker() {
             @media (max-width: 768px) {
                 .global-ticker {
                     font-size: 14px;
-                    padding: 8px 0;
+                    padding: 8px 10px;
                 }
             }
         `;
