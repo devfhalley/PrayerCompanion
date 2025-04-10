@@ -16,13 +16,7 @@ function saveTickerState() {
         murattalInfo: tickerState.murattalInfo,
         lastUpdated: new Date().getTime()
     };
-    
-    try {
-        localStorage.setItem('global_ticker_state', JSON.stringify(stateToSave));
-        console.log('Saved ticker state to localStorage:', stateToSave);
-    } catch (error) {
-        console.error('Error saving ticker state to localStorage:', error);
-    }
+    localStorage.setItem('global_ticker_state', JSON.stringify(stateToSave));
 }
 
 // Function to load ticker state from localStorage
@@ -66,52 +60,34 @@ function loadTickerState() {
 
 // Update ticker content based on saved state
 function updateTickerFromSavedState() {
-    // Check if ticker content element is available
-    if (!tickerState.tickerContentElement) {
-        console.error('Ticker content element not available for updating from saved state');
-        return;
-    }
-    
-    console.log('Updating ticker content from saved state:', {
-        isAdhanPlaying: tickerState.isAdhanPlaying,
-        isAlarmPlaying: tickerState.isAlarmPlaying,
-        isMurattalPlaying: tickerState.isMurattalPlaying
-    });
-    
     if (tickerState.isAdhanPlaying && tickerState.adhanInfo) {
         const prayerName = tickerState.adhanInfo.prayer || 'Unknown';
-        console.log('Setting adhan content with prayer:', prayerName);
         tickerState.tickerContentElement.innerHTML = `
             <i class="fas fa-volume-up"></i> 
             ADHAN PLAYING NOW: <strong>${prayerName}</strong> Prayer 
             <i class="fas fa-volume-up"></i>
             <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
         `;
-        document.body.classList.add('adhan-playing');
         showGlobalTicker();
     } 
     else if (tickerState.isAlarmPlaying && tickerState.alarmInfo) {
         const alarmLabel = tickerState.alarmInfo.alarm_label || 'Alarm';
-        console.log('Setting alarm content with label:', alarmLabel);
         tickerState.tickerContentElement.innerHTML = `
             <i class="fas fa-bell"></i> 
             ALARM: <strong>${alarmLabel}</strong>
             <i class="fas fa-bell"></i>
             <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
         `;
-        document.body.classList.add('alarm-playing');
         showGlobalTicker();
     }
     else if (tickerState.isMurattalPlaying && tickerState.murattalInfo) {
         const murattalName = tickerState.murattalInfo.murattal_name || 'Murattal';
-        console.log('Setting murattal content with name:', murattalName);
         tickerState.tickerContentElement.innerHTML = `
             <i class="fas fa-music"></i> 
             MURATTAL PLAYING: <strong>${murattalName}</strong>
             <i class="fas fa-music"></i>
             <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
         `;
-        document.body.classList.add('murattal-playing');
         showGlobalTicker();
     }
 }
@@ -439,15 +415,8 @@ function handleGlobalWebSocketMessage(message) {
     if (message && message.type === 'adhan_playing') {
         console.log('Global adhan playing notification received:', message);
         
-        // Clear classes first to avoid conflicts
-        document.body.classList.remove('alarm-playing', 'murattal-playing');
         document.body.classList.add('adhan-playing');
-        
-        // Update state
         tickerState.isAdhanPlaying = true;
-        tickerState.isAlarmPlaying = false;
-        tickerState.isMurattalPlaying = false;
-        
         tickerState.adhanInfo = {
             prayer: message.prayer || 'Unknown',
             timestamp: message.timestamp || Date.now()
@@ -455,21 +424,16 @@ function handleGlobalWebSocketMessage(message) {
         
         const prayerName = tickerState.adhanInfo.prayer;
         
-        // Make sure the ticker element is available before updating content
-        if (tickerState.tickerContentElement) {
-            // Update with Adhan ticker style content
-            tickerState.tickerContentElement.innerHTML = `
-                <i class="fas fa-volume-up"></i> 
-                ADHAN PLAYING NOW: <strong>${prayerName}</strong> Prayer 
-                <i class="fas fa-volume-up"></i>
-                <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
-            `;
-            
-            // Always show the ticker for adhan notifications regardless of user preference
-            showGlobalTicker();
-        } else {
-            console.error('Ticker content element not available when receiving adhan message');
-        }
+        // Update with Adhan ticker style content
+        tickerState.tickerContentElement.innerHTML = `
+            <i class="fas fa-volume-up"></i> 
+            ADHAN PLAYING NOW: <strong>${prayerName}</strong> Prayer 
+            <i class="fas fa-volume-up"></i>
+            <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
+        `;
+        
+        // Always show the ticker for adhan notifications regardless of user preference
+        showGlobalTicker();
         
         // Clear any existing timeout
         if (tickerState.adhanPlayingTimeoutId) {
@@ -489,22 +453,15 @@ function handleGlobalWebSocketMessage(message) {
             fetchPrayerTimesForTicker();
         }, 5 * 60 * 1000); // 5 minutes
         
-        // Save state to localStorage immediately for persistence between pages
+        // Save state to localStorage
         saveTickerState();
     } 
     // Handle alarm playing message
     else if (message && message.type === 'alarm_playing') {
         console.log('Global alarm playing notification received:', message);
         
-        // Clear classes first to avoid conflicts
-        document.body.classList.remove('adhan-playing', 'murattal-playing');
         document.body.classList.add('alarm-playing');
-        
-        // Update state
-        tickerState.isAdhanPlaying = false;
         tickerState.isAlarmPlaying = true;
-        tickerState.isMurattalPlaying = false;
-        
         tickerState.alarmInfo = {
             alarm_label: message.alarm_label || 'Alarm',
             alarm_id: message.alarm_id,
@@ -513,21 +470,16 @@ function handleGlobalWebSocketMessage(message) {
         
         const alarmLabel = tickerState.alarmInfo.alarm_label;
         
-        // Make sure the ticker element is available before updating content
-        if (tickerState.tickerContentElement) {
-            // Update with Alarm ticker style content
-            tickerState.tickerContentElement.innerHTML = `
-                <i class="fas fa-bell"></i> 
-                ALARM: <strong>${alarmLabel}</strong>
-                <i class="fas fa-bell"></i>
-                <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
-            `;
-            
-            // Always show the ticker for alarm notifications regardless of user preference
-            showGlobalTicker();
-        } else {
-            console.error('Ticker content element not available when receiving alarm message');
-        }
+        // Update with Alarm ticker style content
+        tickerState.tickerContentElement.innerHTML = `
+            <i class="fas fa-bell"></i> 
+            ALARM: <strong>${alarmLabel}</strong>
+            <i class="fas fa-bell"></i>
+            <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
+        `;
+        
+        // Always show the ticker for alarm notifications regardless of user preference
+        showGlobalTicker();
         
         // Clear any existing timeout
         if (tickerState.alarmPlayingTimeoutId) {
@@ -547,22 +499,15 @@ function handleGlobalWebSocketMessage(message) {
             fetchPrayerTimesForTicker();
         }, 5 * 60 * 1000); // 5 minutes
         
-        // Save state to localStorage immediately for persistence between pages
+        // Save state to localStorage
         saveTickerState();
     }
     // Handle murattal playing message
     else if (message && message.type === 'murattal_playing') {
         console.log('Global murattal playing notification received:', message);
         
-        // Clear classes first to avoid conflicts
-        document.body.classList.remove('adhan-playing', 'alarm-playing');
         document.body.classList.add('murattal-playing');
-        
-        // Update state
-        tickerState.isAdhanPlaying = false;
-        tickerState.isAlarmPlaying = false;
         tickerState.isMurattalPlaying = true;
-        
         tickerState.murattalInfo = {
             murattal_name: message.murattal_name || 'Murattal',
             file_path: message.file_path,
@@ -571,21 +516,16 @@ function handleGlobalWebSocketMessage(message) {
         
         const murattalName = tickerState.murattalInfo.murattal_name;
         
-        // Make sure the ticker element is available before updating content
-        if (tickerState.tickerContentElement) {
-            // Update with Murattal ticker style content - using green color for murattal
-            tickerState.tickerContentElement.innerHTML = `
-                <i class="fas fa-music"></i> 
-                MURATTAL PLAYING: <strong>${murattalName}</strong>
-                <i class="fas fa-music"></i>
-                <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
-            `;
-            
-            // Always show the ticker for murattal notifications regardless of user preference
-            showGlobalTicker();
-        } else {
-            console.error('Ticker content element not available when receiving murattal message');
-        }
+        // Update with Murattal ticker style content - using green color for murattal
+        tickerState.tickerContentElement.innerHTML = `
+            <i class="fas fa-music"></i> 
+            MURATTAL PLAYING: <strong>${murattalName}</strong>
+            <i class="fas fa-music"></i>
+            <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
+        `;
+        
+        // Always show the ticker for murattal notifications regardless of user preference
+        showGlobalTicker();
         
         // Clear any existing timeout
         if (tickerState.murattalPlayingTimeoutId) {
@@ -605,7 +545,7 @@ function handleGlobalWebSocketMessage(message) {
             fetchPrayerTimesForTicker();
         }, 5 * 60 * 1000); // 5 minutes
         
-        // Save state to localStorage immediately for persistence between pages
+        // Save state to localStorage
         saveTickerState();
     }
     else if (message && message.type === 'prayer_times_updated') {
@@ -797,115 +737,5 @@ function stopAudio() {
     });
 }
 
-// Function to check audio status and update ticker accordingly
-function checkAudioStatus() {
-    // Check if murattal, adhan, or alarm is playing via status API
-    fetch('/status')
-        .then(response => response.json())
-        .then(status => {
-            console.log('Audio status checked:', status);
-            // If audio is playing but our ticker doesn't show it, update ticker
-            if (status.is_playing) {
-                const isAdhan = status.player_info && status.player_info.type === 'adhan';
-                const isAlarm = status.player_info && status.player_info.type === 'alarm';
-                const isMurattal = status.player_info && status.player_info.type === 'murattal';
-                
-                if (isAdhan && !tickerState.isAdhanPlaying) {
-                    // Simulate adhan playing message
-                    handleGlobalWebSocketMessage({
-                        type: 'adhan_playing',
-                        prayer: status.player_info.prayer || 'Unknown',
-                        timestamp: Date.now()
-                    });
-                }
-                else if (isAlarm && !tickerState.isAlarmPlaying) {
-                    // Simulate alarm playing message
-                    handleGlobalWebSocketMessage({
-                        type: 'alarm_playing',
-                        alarm_label: status.player_info.alarm_label || 'Alarm',
-                        alarm_id: status.player_info.alarm_id,
-                        timestamp: Date.now()
-                    });
-                }
-                else if (isMurattal && !tickerState.isMurattalPlaying) {
-                    // Simulate murattal playing message
-                    const murattalInfo = status.player_info || {};
-                    const fileName = murattalInfo.file_path ? 
-                        murattalInfo.file_path.split('/').pop().replace('.mp3', '') : 
-                        'Murattal';
-                    
-                    handleGlobalWebSocketMessage({
-                        type: 'murattal_playing',
-                        murattal_name: fileName,
-                        file_path: murattalInfo.file_path,
-                        timestamp: Date.now()
-                    });
-                }
-            }
-            // If audio is not playing but our ticker shows it is, update ticker
-            else {
-                if (tickerState.isAdhanPlaying || tickerState.isAlarmPlaying || tickerState.isMurattalPlaying) {
-                    document.body.classList.remove('adhan-playing');
-                    document.body.classList.remove('alarm-playing');
-                    document.body.classList.remove('murattal-playing');
-                    tickerState.isAdhanPlaying = false;
-                    tickerState.isAlarmPlaying = false;
-                    tickerState.isMurattalPlaying = false;
-                    
-                    // Clear references
-                    tickerState.adhanInfo = null;
-                    tickerState.alarmInfo = null;
-                    tickerState.murattalInfo = null;
-                    
-                    // Save the updated state to localStorage
-                    saveTickerState();
-                    
-                    // Refresh prayer times and update ticker
-                    fetchPrayerTimesForTicker();
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Error checking audio status:', error);
-        });
-}
-
 // Initialize when the document is ready
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded - initializing ticker with proper state persistence');
-    
-    // First load state from localStorage immediately to reduce flickering
-    try {
-        const savedState = localStorage.getItem('global_ticker_state');
-        if (savedState) {
-            const parsedState = JSON.parse(savedState);
-            // Only restore if it's recent (less than 5 minutes old)
-            const now = new Date().getTime();
-            const fiveMinutes = 5 * 60 * 1000;
-            if (parsedState.lastUpdated && (now - parsedState.lastUpdated < fiveMinutes)) {
-                console.log('Found recent ticker state in localStorage, applying immediately');
-                tickerState.isAdhanPlaying = parsedState.isAdhanPlaying || false;
-                tickerState.isAlarmPlaying = parsedState.isAlarmPlaying || false;
-                tickerState.isMurattalPlaying = parsedState.isMurattalPlaying || false;
-                tickerState.adhanInfo = parsedState.adhanInfo;
-                tickerState.alarmInfo = parsedState.alarmInfo;
-                tickerState.murattalInfo = parsedState.murattalInfo;
-                
-                if (tickerState.isAdhanPlaying) document.body.classList.add('adhan-playing');
-                if (tickerState.isAlarmPlaying) document.body.classList.add('alarm-playing');
-                if (tickerState.isMurattalPlaying) document.body.classList.add('murattal-playing');
-            }
-        }
-    } catch(e) {
-        console.error('Error pre-loading ticker state:', e);
-    }
-    
-    // Then initialize the ticker UI elements
-    initGlobalTicker();
-    
-    // Check for audio status every 3 seconds as fallback if WebSocket is having issues
-    setInterval(checkAudioStatus, 3000);
-    
-    // Also check audio status immediately to update ticker state
-    setTimeout(checkAudioStatus, 100);
-});
+document.addEventListener('DOMContentLoaded', initGlobalTicker);
