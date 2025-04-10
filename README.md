@@ -9,6 +9,8 @@ A comprehensive Islamic prayer alarm and reminder system with two main component
 The Prayer Alarm System provides the following features:
 
 - **Islamic Prayer Time Scheduling**: Automatically fetches and announces prayer times for Jakarta, Indonesia using the Aladhan API
+- **Pre-Adhan Announcements**: Configurable 10-minute and 5-minute pre-adhan announcements with customizable sounds for each prayer
+- **Tahrim Sound System**: Plays customizable tahrim sounds after each pre-adhan announcement
 - **Custom Alarm System**: Set alarms for specific times/days with repeat options and custom sounds (MP3 files or text-to-speech)
 - **Push-to-Talk**: Speak through the Android app and have your voice played through the Raspberry Pi speaker in real-time
 
@@ -69,6 +71,10 @@ The Raspberry Pi server exposes the following API endpoints:
 - `POST /alarms/{id}/disable` - Disable an alarm
 - `GET /prayer-times` - Get prayer times for a specific date
 - `POST /prayer-times/refresh` - Force refresh of prayer times from API
+- `POST /pre-adhan/10-min` - Set custom 10-minute pre-adhan sound for a prayer
+- `POST /pre-adhan/5-min` - Set custom 5-minute pre-adhan sound for a prayer
+- `POST /pre-adhan/tahrim` - Set custom tahrim sound for a prayer
+- `POST /pre-adhan/test` - Test pre-adhan or tahrim sounds
 - `POST /stop-audio` - Stop any playing audio
 - `WebSocket /ws` - WebSocket endpoint for push-to-talk
 
