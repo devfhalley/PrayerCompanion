@@ -1278,6 +1278,40 @@ def set_tahrim_sound():
         logger.error(f"Error setting tahrim sound: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/alarms/test/<int:alarm_id>', methods=['POST'])
+def test_alarm(alarm_id):
+    """Test play a specific alarm sound."""
+    try:
+        db = get_db()
+        alarm = db.get_alarm(alarm_id)
+        
+        if not alarm:
+            return jsonify({
+                'status': 'error',
+                'message': 'Alarm not found'
+            }), 404
+        
+        # Play alarm sound
+        if alarm.is_tts and alarm.message:
+            audio_player.play_tts(alarm.message, audio_player.PRIORITY_ALARM)
+        elif alarm.sound_path and os.path.exists(alarm.sound_path):
+            audio_player.play_file(alarm.sound_path, audio_player.PRIORITY_ALARM)
+        else:
+            # Use the default alarm sound if no specific sound is set
+            audio_player.play_file(Config.DEFAULT_ALARM_SOUND, audio_player.PRIORITY_ALARM)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Testing alarm {alarm_id}'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error testing alarm: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Error: {str(e)}'
+        }), 500
+
 @app.route('/pre-adhan/test', methods=['POST'])
 def test_pre_adhan_sound():
     """Test a pre-adhan or tahrim sound."""

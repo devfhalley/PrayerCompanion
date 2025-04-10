@@ -182,6 +182,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <button class="btn btn-sm ${alarm.enabled ? 'btn-secondary' : 'btn'} toggle-alarm" data-id="${alarm.id}" data-enabled="${alarm.enabled}">
                                     <i class="fas ${alarm.enabled ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
                                 </button>
+                                <button class="btn btn-sm btn-info test-alarm" data-id="${alarm.id}">
+                                    <i class="fas fa-play"></i>
+                                </button>
                             </td>
                         </tr>
                     `;
@@ -205,6 +208,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         const id = this.getAttribute('data-id');
                         const enabled = this.getAttribute('data-enabled') === 'true';
                         await toggleAlarm(id, enabled);
+                    });
+                });
+                
+                document.querySelectorAll('.test-alarm').forEach(button => {
+                    button.addEventListener('click', async function() {
+                        const id = this.getAttribute('data-id');
+                        await testAlarm(id);
                     });
                 });
                 
@@ -286,6 +296,56 @@ document.addEventListener('DOMContentLoaded', function() {
             showNotification('Error deleting alarm: ' + error.message, 'error');
             // Refresh the list to ensure consistent state
             await fetchAlarms();
+        }
+    }
+    
+    // Test alarm sound
+    async function testAlarm(id) {
+        try {
+            // First update the UI to show the action is in progress
+            const testButton = document.querySelector(`button.test-alarm[data-id="${id}"]`);
+            if (testButton) {
+                // Visual feedback - change icon to spinner
+                const icon = testButton.querySelector('i');
+                if (icon) {
+                    icon.classList.remove('fa-play');
+                    icon.classList.add('fa-spinner', 'fa-spin');
+                }
+                
+                // Disable the button to prevent repeated clicks
+                testButton.disabled = true;
+            }
+            
+            // Call the test endpoint
+            const response = await fetch(`/alarms/test/${id}`, { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showNotification('Testing alarm sound');
+            } else {
+                throw new Error(result.message || 'Unknown error when testing alarm');
+            }
+        } catch (error) {
+            console.error('Error testing alarm:', error);
+            showNotification('Error testing alarm: ' + error.message, 'error');
+        } finally {
+            // Restore button appearance
+            const testButton = document.querySelector(`button.test-alarm[data-id="${id}"]`);
+            if (testButton) {
+                const icon = testButton.querySelector('i');
+                if (icon) {
+                    icon.classList.remove('fa-spinner', 'fa-spin');
+                    icon.classList.add('fa-play');
+                }
+                testButton.disabled = false;
+            }
         }
     }
     
