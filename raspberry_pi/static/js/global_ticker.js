@@ -94,14 +94,6 @@ function initGlobalTicker() {
                 100% { transform: translateX(-100%); }
             }
             
-            /* Disable animation when adhan is playing for better stop button usability */
-            .adhan-playing .global-ticker .ticker-content {
-                animation: none;
-                transform: translateX(0);
-                text-align: center;
-                padding-right: 100px; /* Extra space for buttons */
-            }
-            
             .global-ticker .ticker-content i {
                 margin: 0 5px;
             }
@@ -133,10 +125,8 @@ function initGlobalTicker() {
             }
             
             .global-ticker .stop-audio-btn {
-                position: absolute;
-                right: 40px; /* Position to the right of the ticker, leaving space for the close button */
-                top: 50%;
-                transform: translateY(-50%);
+                display: inline-block;
+                margin-left: 15px;
                 background-color: #f44336;
                 color: white;
                 border: none;
@@ -145,8 +135,8 @@ function initGlobalTicker() {
                 font-size: 14px;
                 cursor: pointer;
                 transition: background-color 0.3s;
+                vertical-align: middle;
                 box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-                z-index: 10;
             }
             
             .global-ticker .stop-audio-btn:hover {
@@ -173,7 +163,7 @@ function initGlobalTicker() {
                 .global-ticker .stop-audio-btn {
                     padding: 2px 6px;
                     font-size: 12px;
-                    right: 30px; /* Adjust right position for mobile */
+                    margin-left: 8px;
                 }
             }
         `;
