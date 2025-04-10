@@ -75,7 +75,13 @@ class AudioPlayer:
                     self.current_priority = priority
                 
                 if audio_type == 'file':
-                    self._play_file_internal(audio_data)
+                    # Special handling for adhan - never loop
+                    if priority == self.PRIORITY_ADHAN:
+                        logger.info("Playing adhan with no looping")
+                        self._play_file_internal(audio_data, loop=0)  # Explicitly set loop=0 for adhan
+                    else:
+                        # For other types, use default behavior
+                        self._play_file_internal(audio_data)
                 elif audio_type == 'tts':
                     self._play_tts_internal(audio_data)
                 elif audio_type == 'bytes':
@@ -99,17 +105,22 @@ class AudioPlayer:
             # Small delay to prevent CPU hogging
             time.sleep(0.1)
     
-    def _play_file_internal(self, file_path):
-        """Internal method to play a file."""
+    def _play_file_internal(self, file_path, loop=0):
+        """Internal method to play a file.
+        
+        Args:
+            file_path: Path to the audio file
+            loop: Number of times to loop the audio (-1 for infinite, 0 for once)
+        """
         try:
             if not os.path.exists(file_path):
                 logger.error(f"Audio file not found: {file_path}")
                 return
             
-            logger.info(f"Playing audio file: {file_path}")
+            logger.info(f"Playing audio file: {file_path}, loop: {loop}")
             
             pygame.mixer.music.load(file_path)
-            pygame.mixer.music.play()
+            pygame.mixer.music.play(loops=loop)
             
             # Wait for playback to finish
             while pygame.mixer.music.get_busy():
@@ -135,8 +146,8 @@ class AudioPlayer:
             # Save to the temporary file
             tts.save(temp_filename)
             
-            # Play the temporary file
-            self._play_file_internal(temp_filename)
+            # Play the temporary file - always with no looping for TTS
+            self._play_file_internal(temp_filename, loop=0)
             
             # Clean up - delete the temporary file
             try:
@@ -161,7 +172,11 @@ class AudioPlayer:
                 
                 # Try to play the WAV file
                 try:
-                    self._play_file_internal(temp_filename)
+                    # If current priority is adhan, don't loop
+                    if self.current_priority == self.PRIORITY_ADHAN:
+                        self._play_file_internal(temp_filename, loop=0)
+                    else:
+                        self._play_file_internal(temp_filename)
                     logger.info("Successfully played audio as WAV")
                     return
                 except Exception as wav_error:
@@ -194,7 +209,11 @@ class AudioPlayer:
                                 audio.export(wav_filename, format="wav")
                                 
                                 # Try to play the converted file
-                                self._play_file_internal(wav_filename)
+                                # If current priority is adhan, don't loop
+                                if self.current_priority == self.PRIORITY_ADHAN:
+                                    self._play_file_internal(wav_filename, loop=0)
+                                else:
+                                    self._play_file_internal(wav_filename)
                                 logger.info(f"Successfully converted and played as {fmt}")
                                 
                                 # Set temp_filename for cleanup

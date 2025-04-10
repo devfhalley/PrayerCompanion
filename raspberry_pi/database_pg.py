@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import threading
 from contextlib import contextmanager
 
-from models import Alarm, PrayerTime
+from models import Alarm, PrayerTime, YouTubeVideo
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,8 @@ def init_db():
             url TEXT NOT NULL,
             title TEXT,
             enabled BOOLEAN NOT NULL DEFAULT TRUE,
-            position INTEGER NOT NULL DEFAULT 0
+            position INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         ''')
         

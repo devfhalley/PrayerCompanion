@@ -834,9 +834,16 @@ def upload_murattal():
 @app.route('/web', methods=['GET'])
 def web_home():
     """Web interface home page."""
-    # Get enabled YouTube videos
-    db = get_db()
-    youtube_videos = db.get_enabled_youtube_videos()
+    # Get enabled YouTube videos with error handling
+    youtube_videos = []
+    try:
+        db = get_db()
+        logger.info("Attempting to fetch YouTube videos for home page")
+        youtube_videos = db.get_enabled_youtube_videos()
+        logger.info(f"Successfully retrieved {len(youtube_videos)} YouTube videos")
+    except Exception as e:
+        logger.error(f"Error retrieving YouTube videos: {e}")
+        # Continue without YouTube videos
     
     return render_template('index.html', youtube_videos=youtube_videos)
 
@@ -895,8 +902,15 @@ def web_settings():
     db = get_db()
     prayer_times = db.get_todays_prayer_times()
     
-    # Get YouTube videos
-    youtube_videos = db.get_all_youtube_videos()
+    # Get YouTube videos with error handling
+    youtube_videos = []
+    try:
+        logger.info("Attempting to fetch YouTube videos for settings page")
+        youtube_videos = db.get_all_youtube_videos()
+        logger.info(f"Successfully retrieved {len(youtube_videos)} YouTube videos for settings page")
+    except Exception as e:
+        logger.error(f"Error retrieving YouTube videos for settings page: {e}")
+        # Continue without YouTube videos
     
     # Get configuration values
     return render_template('settings.html', 
@@ -977,111 +991,168 @@ def get_volume():
 @app.route('/youtube-videos', methods=['GET'])
 def get_youtube_videos():
     """Get all YouTube videos."""
-    db = get_db()
-    videos = db.get_all_youtube_videos()
-    return jsonify([video.to_dict() for video in videos])
+    try:
+        db = get_db()
+        logger.info("Fetching all YouTube videos via API")
+        videos = db.get_all_youtube_videos()
+        logger.info(f"Successfully retrieved {len(videos)} YouTube videos")
+        return jsonify([video.to_dict() for video in videos])
+    except Exception as e:
+        logger.error(f"Error retrieving YouTube videos: {e}")
+        return jsonify({"status": "error", "message": f"Error retrieving YouTube videos: {str(e)}"}), 500
 
 @app.route('/youtube-videos/enabled', methods=['GET'])
 def get_enabled_youtube_videos():
     """Get all enabled YouTube videos."""
-    db = get_db()
-    videos = db.get_enabled_youtube_videos()
-    return jsonify([video.to_dict() for video in videos])
+    try:
+        db = get_db()
+        logger.info("Fetching enabled YouTube videos via API")
+        videos = db.get_enabled_youtube_videos()
+        logger.info(f"Successfully retrieved {len(videos)} enabled YouTube videos")
+        return jsonify([video.to_dict() for video in videos])
+    except Exception as e:
+        logger.error(f"Error retrieving enabled YouTube videos: {e}")
+        return jsonify({"status": "error", "message": f"Error retrieving enabled YouTube videos: {str(e)}"}), 500
 
 @app.route('/youtube-videos', methods=['POST'])
 def add_youtube_video():
     """Add a new YouTube video."""
-    data = request.json
-    
-    # Validate data
-    if 'url' not in data:
-        return jsonify({"status": "error", "message": "URL is required"}), 400
+    try:
+        data = request.json
         
-    # Create and populate YouTube video object
-    video = YouTubeVideo()
-    video.url = data['url']
-    video.title = data.get('title', '')
-    video.enabled = data.get('enabled', True)
-    
-    # Get position if provided, otherwise add to the end
-    if 'position' in data:
-        video.position = int(data['position'])
-    else:
-        # Get all videos to determine the next position
+        # Validate data
+        if 'url' not in data:
+            return jsonify({"status": "error", "message": "URL is required"}), 400
+            
+        # Create and populate YouTube video object
+        video = YouTubeVideo()
+        video.url = data['url']
+        video.title = data.get('title', '')
+        video.enabled = data.get('enabled', True)
+        
+        # Get position if provided, otherwise add to the end
+        if 'position' in data:
+            video.position = int(data['position'])
+        else:
+            try:
+                # Get all videos to determine the next position
+                db = get_db()
+                existing_videos = db.get_all_youtube_videos()
+                video.position = len(existing_videos)
+            except Exception as e:
+                logger.warning(f"Error getting existing videos for position: {e}")
+                video.position = 0  # Default to position 0 if we can't get the list
+        
+        # Add to database
         db = get_db()
-        existing_videos = db.get_all_youtube_videos()
-        video.position = len(existing_videos)
-    
-    # Add to database
-    db = get_db()
-    video_id = db.add_youtube_video(video)
-    
-    if video_id:
-        # Return the saved video
-        saved_video = db.get_youtube_video(video_id)
-        return jsonify({"status": "success", "message": "YouTube video added", "video": saved_video.to_dict()})
-    else:
-        return jsonify({"status": "error", "message": "Failed to add YouTube video"}), 500
+        logger.info(f"Adding new YouTube video: {video.url}")
+        video_id = db.add_youtube_video(video)
+        
+        if video_id:
+            # Return the saved video
+            saved_video = db.get_youtube_video(video_id)
+            if saved_video:
+                logger.info(f"Successfully added YouTube video with ID {video_id}")
+                return jsonify({"status": "success", "message": "YouTube video added", "video": saved_video.to_dict()})
+            else:
+                logger.warning(f"Video was added with ID {video_id} but couldn't be retrieved")
+                return jsonify({"status": "success", "message": "YouTube video added", "video_id": video_id})
+        else:
+            return jsonify({"status": "error", "message": "Failed to add YouTube video"}), 500
+    except Exception as e:
+        logger.error(f"Error adding YouTube video: {e}")
+        return jsonify({"status": "error", "message": f"Error adding YouTube video: {str(e)}"}), 500
 
 @app.route('/youtube-videos/<int:video_id>', methods=['PUT'])
 def update_youtube_video(video_id):
     """Update an existing YouTube video."""
-    data = request.json
-    
-    # Get the existing video
-    db = get_db()
-    video = db.get_youtube_video(video_id)
-    
-    if not video:
-        return jsonify({"status": "error", "message": f"YouTube video with ID {video_id} not found"}), 404
-    
-    # Update fields
-    if 'url' in data:
-        video.url = data['url']
-    if 'title' in data:
-        video.title = data['title']
-    if 'enabled' in data:
-        video.enabled = bool(data['enabled'])
-    if 'position' in data:
-        video.position = int(data['position'])
-    
-    # Save changes
-    db.update_youtube_video(video)
-    
-    # Return the updated video
-    updated_video = db.get_youtube_video(video_id)
-    return jsonify({"status": "success", "message": "YouTube video updated", "video": updated_video.to_dict()})
+    try:
+        data = request.json
+        
+        # Get the existing video
+        db = get_db()
+        logger.info(f"Retrieving YouTube video {video_id} for update")
+        video = db.get_youtube_video(video_id)
+        
+        if not video:
+            logger.warning(f"YouTube video with ID {video_id} not found")
+            return jsonify({"status": "error", "message": f"YouTube video with ID {video_id} not found"}), 404
+        
+        # Update fields
+        if 'url' in data:
+            video.url = data['url']
+        if 'title' in data:
+            video.title = data['title']
+        if 'enabled' in data:
+            video.enabled = bool(data['enabled'])
+        if 'position' in data:
+            video.position = int(data['position'])
+        
+        # Save changes
+        logger.info(f"Updating YouTube video {video_id}")
+        db.update_youtube_video(video)
+        
+        # Return the updated video
+        updated_video = db.get_youtube_video(video_id)
+        if updated_video:
+            logger.info(f"Successfully updated YouTube video {video_id}")
+            return jsonify({"status": "success", "message": "YouTube video updated", "video": updated_video.to_dict()})
+        else:
+            logger.warning(f"Video {video_id} was updated but couldn't be retrieved after update")
+            return jsonify({"status": "success", "message": "YouTube video updated"})
+    except Exception as e:
+        logger.error(f"Error updating YouTube video {video_id}: {e}")
+        return jsonify({"status": "error", "message": f"Error updating YouTube video: {str(e)}"}), 500
 
 @app.route('/youtube-videos/<int:video_id>', methods=['DELETE'])
 def delete_youtube_video(video_id):
     """Delete a YouTube video."""
-    db = get_db()
-    
-    # Check if the video exists
-    video = db.get_youtube_video(video_id)
-    if not video:
-        return jsonify({"status": "error", "message": f"YouTube video with ID {video_id} not found"}), 404
-    
-    # Delete the video
-    db.delete_youtube_video(video_id)
-    
-    return jsonify({"status": "success", "message": f"YouTube video with ID {video_id} deleted"})
+    try:
+        db = get_db()
+        
+        # Check if the video exists
+        logger.info(f"Checking if YouTube video {video_id} exists before deletion")
+        video = db.get_youtube_video(video_id)
+        if not video:
+            logger.warning(f"YouTube video with ID {video_id} not found for deletion")
+            return jsonify({"status": "error", "message": f"YouTube video with ID {video_id} not found"}), 404
+        
+        # Delete the video
+        logger.info(f"Deleting YouTube video {video_id}")
+        db.delete_youtube_video(video_id)
+        
+        logger.info(f"Successfully deleted YouTube video {video_id}")
+        return jsonify({"status": "success", "message": f"YouTube video with ID {video_id} deleted"})
+    except Exception as e:
+        logger.error(f"Error deleting YouTube video {video_id}: {e}")
+        return jsonify({"status": "error", "message": f"Error deleting YouTube video: {str(e)}"}), 500
 
 @app.route('/youtube-videos/reorder', methods=['POST'])
 def reorder_youtube_videos():
     """Reorder YouTube videos."""
-    data = request.json
-    
-    if 'video_ids' not in data or not isinstance(data['video_ids'], list):
-        return jsonify({"status": "error", "message": "video_ids list is required"}), 400
-    
-    # Update positions
-    db = get_db()
-    db.reorder_youtube_videos(data['video_ids'])
-    
-    # Return the reordered videos
-    videos = db.get_all_youtube_videos()
-    return jsonify({"status": "success", "message": "YouTube videos reordered", "videos": [video.to_dict() for video in videos]})
+    try:
+        data = request.json
+        
+        if 'video_ids' not in data or not isinstance(data['video_ids'], list):
+            logger.warning("Invalid request data for reordering: missing or invalid video_ids")
+            return jsonify({"status": "error", "message": "video_ids list is required"}), 400
+        
+        # Update positions
+        db = get_db()
+        logger.info(f"Reordering YouTube videos with IDs: {data['video_ids']}")
+        db.reorder_youtube_videos(data['video_ids'])
+        
+        try:
+            # Return the reordered videos
+            videos = db.get_all_youtube_videos()
+            logger.info(f"Successfully reordered {len(videos)} YouTube videos")
+            return jsonify({"status": "success", "message": "YouTube videos reordered", "videos": [video.to_dict() for video in videos]})
+        except Exception as inner_e:
+            logger.warning(f"Videos were reordered but couldn't be retrieved: {inner_e}")
+            return jsonify({"status": "success", "message": "YouTube videos reordered"})
+    except Exception as e:
+        logger.error(f"Error reordering YouTube videos: {e}")
+        return jsonify({"status": "error", "message": f"Error reordering YouTube videos: {str(e)}"}), 500
 
 def start_schedulers():
     """Start the prayer and alarm schedulers."""
