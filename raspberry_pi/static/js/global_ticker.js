@@ -4,17 +4,112 @@
  * Matches the orange Adhan ticker style and content from the Prayer Times page
  */
 
+// Function to save ticker state to localStorage
+function saveTickerState() {
+    const stateToSave = {
+        isAdhanPlaying: tickerState.isAdhanPlaying,
+        isAlarmPlaying: tickerState.isAlarmPlaying,
+        isMurattalPlaying: tickerState.isMurattalPlaying,
+        currentMessage: tickerState.currentMessage,
+        adhanInfo: tickerState.adhanInfo,
+        alarmInfo: tickerState.alarmInfo,
+        murattalInfo: tickerState.murattalInfo,
+        lastUpdated: new Date().getTime()
+    };
+    localStorage.setItem('global_ticker_state', JSON.stringify(stateToSave));
+}
+
+// Function to load ticker state from localStorage
+function loadTickerState() {
+    try {
+        const savedState = localStorage.getItem('global_ticker_state');
+        if (savedState) {
+            const parsedState = JSON.parse(savedState);
+            
+            // Only restore state if it's recent (less than 5 minutes old)
+            const now = new Date().getTime();
+            const fiveMinutes = 5 * 60 * 1000;
+            if (parsedState.lastUpdated && (now - parsedState.lastUpdated < fiveMinutes)) {
+                tickerState.isAdhanPlaying = parsedState.isAdhanPlaying || false;
+                tickerState.isAlarmPlaying = parsedState.isAlarmPlaying || false;
+                tickerState.isMurattalPlaying = parsedState.isMurattalPlaying || false;
+                tickerState.currentMessage = parsedState.currentMessage || '';
+                tickerState.adhanInfo = parsedState.adhanInfo;
+                tickerState.alarmInfo = parsedState.alarmInfo;
+                tickerState.murattalInfo = parsedState.murattalInfo;
+                
+                // Update body classes to match saved state
+                if (tickerState.isAdhanPlaying) {
+                    document.body.classList.add('adhan-playing');
+                }
+                if (tickerState.isAlarmPlaying) {
+                    document.body.classList.add('alarm-playing');
+                }
+                if (tickerState.isMurattalPlaying) {
+                    document.body.classList.add('murattal-playing');
+                }
+                
+                return true;
+            }
+        }
+    } catch (e) {
+        console.error('Error loading ticker state from localStorage:', e);
+    }
+    return false;
+}
+
+// Update ticker content based on saved state
+function updateTickerFromSavedState() {
+    if (tickerState.isAdhanPlaying && tickerState.adhanInfo) {
+        const prayerName = tickerState.adhanInfo.prayer || 'Unknown';
+        tickerState.tickerContentElement.innerHTML = `
+            <i class="fas fa-volume-up"></i> 
+            ADHAN PLAYING NOW: <strong>${prayerName}</strong> Prayer 
+            <i class="fas fa-volume-up"></i>
+            <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
+        `;
+        showGlobalTicker();
+    } 
+    else if (tickerState.isAlarmPlaying && tickerState.alarmInfo) {
+        const alarmLabel = tickerState.alarmInfo.alarm_label || 'Alarm';
+        tickerState.tickerContentElement.innerHTML = `
+            <i class="fas fa-bell"></i> 
+            ALARM: <strong>${alarmLabel}</strong>
+            <i class="fas fa-bell"></i>
+            <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
+        `;
+        showGlobalTicker();
+    }
+    else if (tickerState.isMurattalPlaying && tickerState.murattalInfo) {
+        const murattalName = tickerState.murattalInfo.murattal_name || 'Murattal';
+        tickerState.tickerContentElement.innerHTML = `
+            <i class="fas fa-music"></i> 
+            MURATTAL PLAYING: <strong>${murattalName}</strong>
+            <i class="fas fa-music"></i>
+            <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
+        `;
+        showGlobalTicker();
+    }
+}
+
 // Global state
 const tickerState = {
     isAdhanPlaying: false,
     isAlarmPlaying: false,
+    isMurattalPlaying: false,
     alarmPlayingTimeoutId: null,
     adhanPlayingTimeoutId: null,
+    murattalPlayingTimeoutId: null,
     currentMessage: '',
     wsConnection: null,
     tickerElement: null,
     tickerContentElement: null,
-    currentPrayerTimes: []
+    currentPrayerTimes: [],
+    reconnectAttempts: 0,
+    // Additional state for details
+    adhanInfo: null, // Will hold prayer name when adhan is playing
+    alarmInfo: null, // Will hold alarm label when alarm is playing
+    murattalInfo: null // Will hold murattal name when murattal is playing
 };
 
 // Initialize the global ticker
@@ -94,6 +189,11 @@ function initGlobalTicker() {
             
             .alarm-playing .global-ticker {
                 background-color: var(--warning-color, #FF9800); /* Orange color during alarm */
+                font-weight: bold;
+            }
+            
+            .murattal-playing .global-ticker {
+                background-color: var(--success-color, #4CAF50); /* Green color during murattal */
                 font-weight: bold;
             }
             
@@ -194,6 +294,13 @@ function initGlobalTicker() {
     
     // Start ticker update interval - update every minute
     setInterval(updateTickerContent, 60000);
+    
+    // Load saved state from localStorage
+    const stateLoaded = loadTickerState();
+    if (stateLoaded) {
+        // Update ticker content based on loaded state
+        updateTickerFromSavedState();
+    }
 }
 
 // Setup WebSocket connection for real-time updates
@@ -310,8 +417,12 @@ function handleGlobalWebSocketMessage(message) {
         
         document.body.classList.add('adhan-playing');
         tickerState.isAdhanPlaying = true;
+        tickerState.adhanInfo = {
+            prayer: message.prayer || 'Unknown',
+            timestamp: message.timestamp || Date.now()
+        };
         
-        const prayerName = message.prayer || 'Unknown';
+        const prayerName = tickerState.adhanInfo.prayer;
         
         // Update with Adhan ticker style content
         tickerState.tickerContentElement.innerHTML = `
@@ -333,10 +444,17 @@ function handleGlobalWebSocketMessage(message) {
         tickerState.adhanPlayingTimeoutId = setTimeout(() => {
             document.body.classList.remove('adhan-playing');
             tickerState.isAdhanPlaying = false;
+            tickerState.adhanInfo = null;
+            
+            // Save state after changes
+            saveTickerState();
             
             // Refresh prayer times and update ticker
             fetchPrayerTimesForTicker();
         }, 5 * 60 * 1000); // 5 minutes
+        
+        // Save state to localStorage
+        saveTickerState();
     } 
     // Handle alarm playing message
     else if (message && message.type === 'alarm_playing') {
@@ -344,8 +462,13 @@ function handleGlobalWebSocketMessage(message) {
         
         document.body.classList.add('alarm-playing');
         tickerState.isAlarmPlaying = true;
+        tickerState.alarmInfo = {
+            alarm_label: message.alarm_label || 'Alarm',
+            alarm_id: message.alarm_id,
+            timestamp: message.timestamp || Date.now()
+        };
         
-        const alarmLabel = message.alarm_label || 'Alarm';
+        const alarmLabel = tickerState.alarmInfo.alarm_label;
         
         // Update with Alarm ticker style content
         tickerState.tickerContentElement.innerHTML = `
@@ -367,10 +490,63 @@ function handleGlobalWebSocketMessage(message) {
         tickerState.alarmPlayingTimeoutId = setTimeout(() => {
             document.body.classList.remove('alarm-playing');
             tickerState.isAlarmPlaying = false;
+            tickerState.alarmInfo = null;
+            
+            // Save state after changes
+            saveTickerState();
             
             // Refresh prayer times and update ticker
             fetchPrayerTimesForTicker();
         }, 5 * 60 * 1000); // 5 minutes
+        
+        // Save state to localStorage
+        saveTickerState();
+    }
+    // Handle murattal playing message
+    else if (message && message.type === 'murattal_playing') {
+        console.log('Global murattal playing notification received:', message);
+        
+        document.body.classList.add('murattal-playing');
+        tickerState.isMurattalPlaying = true;
+        tickerState.murattalInfo = {
+            murattal_name: message.murattal_name || 'Murattal',
+            file_path: message.file_path,
+            timestamp: message.timestamp || Date.now()
+        };
+        
+        const murattalName = tickerState.murattalInfo.murattal_name;
+        
+        // Update with Murattal ticker style content - using green color for murattal
+        tickerState.tickerContentElement.innerHTML = `
+            <i class="fas fa-music"></i> 
+            MURATTAL PLAYING: <strong>${murattalName}</strong>
+            <i class="fas fa-music"></i>
+            <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
+        `;
+        
+        // Always show the ticker for murattal notifications regardless of user preference
+        showGlobalTicker();
+        
+        // Clear any existing timeout
+        if (tickerState.murattalPlayingTimeoutId) {
+            clearTimeout(tickerState.murattalPlayingTimeoutId);
+        }
+        
+        // Set a timeout to reset the murattal playing status after 5 minutes
+        tickerState.murattalPlayingTimeoutId = setTimeout(() => {
+            document.body.classList.remove('murattal-playing');
+            tickerState.isMurattalPlaying = false;
+            tickerState.murattalInfo = null;
+            
+            // Save state after changes
+            saveTickerState();
+            
+            // Refresh prayer times and update ticker
+            fetchPrayerTimesForTicker();
+        }, 5 * 60 * 1000); // 5 minutes
+        
+        // Save state to localStorage
+        saveTickerState();
     }
     else if (message && message.type === 'prayer_times_updated') {
         // Prayer times were updated, refresh our data
@@ -527,8 +703,15 @@ function stopAudio() {
         // Update the UI to reflect that audio is no longer playing
         document.body.classList.remove('adhan-playing');
         document.body.classList.remove('alarm-playing');
+        document.body.classList.remove('murattal-playing');
         tickerState.isAdhanPlaying = false;
         tickerState.isAlarmPlaying = false;
+        tickerState.isMurattalPlaying = false;
+        
+        // Clear reference to playing items
+        tickerState.adhanInfo = null;
+        tickerState.alarmInfo = null;
+        tickerState.murattalInfo = null;
         
         // Clear any pending timeouts
         if (tickerState.adhanPlayingTimeoutId) {
@@ -538,6 +721,13 @@ function stopAudio() {
         if (tickerState.alarmPlayingTimeoutId) {
             clearTimeout(tickerState.alarmPlayingTimeoutId);
         }
+        
+        if (tickerState.murattalPlayingTimeoutId) {
+            clearTimeout(tickerState.murattalPlayingTimeoutId);
+        }
+        
+        // Save the updated state to localStorage
+        saveTickerState();
         
         // Refresh prayer times and update ticker
         fetchPrayerTimesForTicker();

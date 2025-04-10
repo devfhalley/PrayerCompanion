@@ -863,7 +863,23 @@ def play_murattal():
     if not file_path or not os.path.exists(file_path):
         return jsonify({"status": "error", "message": "File not found"}), 404
     
+    # Extract file name from path for display in notifications
+    file_name = os.path.basename(file_path)
+    murattal_name = os.path.splitext(file_name)[0]  # Remove extension
+    
+    # Play the murattal
     audio_player.play_murattal(file_path)
+    
+    # Broadcast WebSocket message about murattal playing
+    app.logger.info(f"Broadcasting murattal_playing message for: {murattal_name}")
+    # Use the imported broadcast_message function directly
+    broadcast_message({
+        'type': 'murattal_playing',
+        'murattal_name': murattal_name,
+        'file_path': file_path,
+        'timestamp': int(time.time() * 1000)
+    })
+    
     return jsonify({"status": "success", "message": "Murattal playing"})
 
 @app.route('/murattal/upload', methods=['POST'])

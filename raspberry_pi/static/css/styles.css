@@ -611,6 +611,21 @@ footer {
     animation: global-ticker-pulse 2s infinite;
 }
 
+/* Special ticker states for different audio playback */
+body.adhan-playing .global-ticker {
+    background-color: var(--error-color); /* Red color for adhan notifications */
+    animation: global-ticker-pulse 2s infinite;
+}
+
+body.alarm-playing .global-ticker {
+    background-color: var(--accent-color); /* Orange color for alarm notifications */
+    animation: global-ticker-pulse 2s infinite;
+}
+
+body.murattal-playing .global-ticker {
+    background-color: var(--primary-color); /* Green color for murattal notifications */
+}
+
 @keyframes global-ticker-pulse {
     0% { opacity: 1; }
     50% { opacity: 0.8; }
