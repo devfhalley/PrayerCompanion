@@ -161,6 +161,16 @@ class AlarmScheduler:
         """
         logger.info(f"Triggering alarm {alarm.id}")
         
+        # Broadcast alarm playing message for the ticker
+        from websocket_server import broadcast_message
+        alarm_label = alarm.label or f"Alarm {alarm.id}"
+        broadcast_message({
+            'type': 'alarm_playing',
+            'alarm_id': alarm.id,
+            'alarm_label': alarm_label,
+            'timestamp': int(time.time() * 1000)
+        })
+        
         # Check if this is a smart alarm with gradual volume increase
         smart_alarm_settings = None
         if alarm.smart_alarm:

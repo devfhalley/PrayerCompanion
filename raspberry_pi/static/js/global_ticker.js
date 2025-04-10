@@ -7,6 +7,9 @@
 // Global state
 const tickerState = {
     isAdhanPlaying: false,
+    isAlarmPlaying: false,
+    alarmPlayingTimeoutId: null,
+    adhanPlayingTimeoutId: null,
     currentMessage: '',
     wsConnection: null,
     tickerElement: null,
@@ -86,6 +89,11 @@ function initGlobalTicker() {
             
             .adhan-playing .global-ticker {
                 background-color: var(--error-color, #F44336); /* Red color during adhan */
+                font-weight: bold;
+            }
+            
+            .alarm-playing .global-ticker {
+                background-color: var(--warning-color, #FF9800); /* Orange color during alarm */
                 font-weight: bold;
             }
             
@@ -329,7 +337,42 @@ function handleGlobalWebSocketMessage(message) {
             // Refresh prayer times and update ticker
             fetchPrayerTimesForTicker();
         }, 5 * 60 * 1000); // 5 minutes
-    } else if (message && message.type === 'prayer_times_updated') {
+    } 
+    // Handle alarm playing message
+    else if (message && message.type === 'alarm_playing') {
+        console.log('Global alarm playing notification received:', message);
+        
+        document.body.classList.add('alarm-playing');
+        tickerState.isAlarmPlaying = true;
+        
+        const alarmLabel = message.alarm_label || 'Alarm';
+        
+        // Update with Alarm ticker style content
+        tickerState.tickerContentElement.innerHTML = `
+            <i class="fas fa-bell"></i> 
+            ALARM: <strong>${alarmLabel}</strong>
+            <i class="fas fa-bell"></i>
+            <button class="stop-audio-btn" onclick="stopAudio(); return false;"><i class="fas fa-stop"></i> Stop</button>
+        `;
+        
+        // Always show the ticker for alarm notifications regardless of user preference
+        showGlobalTicker();
+        
+        // Clear any existing timeout
+        if (tickerState.alarmPlayingTimeoutId) {
+            clearTimeout(tickerState.alarmPlayingTimeoutId);
+        }
+        
+        // Set a timeout to reset the alarm playing status after 5 minutes
+        tickerState.alarmPlayingTimeoutId = setTimeout(() => {
+            document.body.classList.remove('alarm-playing');
+            tickerState.isAlarmPlaying = false;
+            
+            // Refresh prayer times and update ticker
+            fetchPrayerTimesForTicker();
+        }, 5 * 60 * 1000); // 5 minutes
+    }
+    else if (message && message.type === 'prayer_times_updated') {
         // Prayer times were updated, refresh our data
         console.log('Prayer times update notification received via WebSocket');
         fetchPrayerTimesForTicker();
@@ -429,8 +472,9 @@ function updateTickerContent() {
             // Always show ticker for adhan
             showGlobalTicker();
         } else {
-            if (!tickerState.isAdhanPlaying) {
+            if (!tickerState.isAdhanPlaying && !tickerState.isAlarmPlaying) {
                 document.body.classList.remove('adhan-playing');
+                document.body.classList.remove('alarm-playing');
             }
         }
     } else {
@@ -439,8 +483,9 @@ function updateTickerContent() {
             <i class="fas fa-moon"></i> All prayers for today have passed. 
             <i class="fas fa-clock"></i> Current time: ${new Date().toLocaleTimeString()}
         `;
-        if (!tickerState.isAdhanPlaying) {
+        if (!tickerState.isAdhanPlaying && !tickerState.isAlarmPlaying) {
             document.body.classList.remove('adhan-playing');
+            document.body.classList.remove('alarm-playing');
         }
     }
 }
@@ -481,7 +526,18 @@ function stopAudio() {
         console.log('Audio stopped successfully:', data);
         // Update the UI to reflect that audio is no longer playing
         document.body.classList.remove('adhan-playing');
+        document.body.classList.remove('alarm-playing');
         tickerState.isAdhanPlaying = false;
+        tickerState.isAlarmPlaying = false;
+        
+        // Clear any pending timeouts
+        if (tickerState.adhanPlayingTimeoutId) {
+            clearTimeout(tickerState.adhanPlayingTimeoutId);
+        }
+        
+        if (tickerState.alarmPlayingTimeoutId) {
+            clearTimeout(tickerState.alarmPlayingTimeoutId);
+        }
         
         // Refresh prayer times and update ticker
         fetchPrayerTimesForTicker();

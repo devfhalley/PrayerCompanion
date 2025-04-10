@@ -1344,6 +1344,15 @@ def test_alarm(alarm_id):
                 'message': 'Alarm not found'
             }), 404
         
+        # Broadcast alarm playing message for the ticker
+        alarm_label = alarm.label or f"Alarm {alarm.id}"
+        broadcast_message({
+            'type': 'alarm_playing',
+            'alarm_id': alarm.id,
+            'alarm_label': alarm_label,
+            'timestamp': int(time.time() * 1000)
+        })
+        
         # Play alarm sound
         if alarm.is_tts and alarm.message:
             audio_player.play_tts(alarm.message, audio_player.PRIORITY_ALARM)
