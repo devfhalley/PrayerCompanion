@@ -24,6 +24,13 @@ class Alarm:
         self.sound_path = None
         # Label is str or None - needed for type annotations
         self.label = None  # type: str | None  # Label for the alarm to display when it rings
+        
+        # Smart alarm features
+        self.smart_alarm = False  # Whether smart alarm features are enabled
+        self.volume_start = 20    # Starting volume level (0-100)
+        self.volume_end = 100     # Target volume level (0-100)
+        self.volume_increment = 5 # Volume increment per step
+        self.ramp_duration = 60   # Duration in seconds for volume ramp
     
     @classmethod
     def from_dict(cls, data):
@@ -137,6 +144,38 @@ class Alarm:
             logger = logging.getLogger(__name__)
             logger.info(f"Setting alarm label from dict: '{data['label']}' -> '{alarm.label}'")
         
+        # Smart alarm features
+        if 'smart_alarm' in data:
+            alarm.smart_alarm = bool(data['smart_alarm'])
+        
+        if 'volume_start' in data:
+            try:
+                alarm.volume_start = max(0, min(100, int(data['volume_start'])))
+            except (ValueError, TypeError):
+                # Keep default if value is invalid
+                pass
+        
+        if 'volume_end' in data:
+            try:
+                alarm.volume_end = max(0, min(100, int(data['volume_end'])))
+            except (ValueError, TypeError):
+                # Keep default if value is invalid
+                pass
+        
+        if 'volume_increment' in data:
+            try:
+                alarm.volume_increment = max(1, min(20, int(data['volume_increment'])))
+            except (ValueError, TypeError):
+                # Keep default if value is invalid
+                pass
+        
+        if 'ramp_duration' in data:
+            try:
+                alarm.ramp_duration = max(10, min(300, int(data['ramp_duration'])))
+            except (ValueError, TypeError):
+                # Keep default if value is invalid
+                pass
+        
         return alarm
     
     def to_dict(self):
@@ -163,7 +202,13 @@ class Alarm:
             'is_tts': self.is_tts,
             'message': self.message,
             'sound_path': self.sound_path,
-            'label': self.label
+            'label': self.label,
+            # Smart alarm features
+            'smart_alarm': self.smart_alarm,
+            'volume_start': self.volume_start,
+            'volume_end': self.volume_end,
+            'volume_increment': self.volume_increment,
+            'ramp_duration': self.ramp_duration
         }
 
 class PrayerTime:

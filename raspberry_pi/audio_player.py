@@ -86,6 +86,14 @@ class AudioPlayer:
                     self._play_tts_internal(audio_data)
                 elif audio_type == 'bytes':
                     self._play_bytes_internal(audio_data)
+                elif audio_type == 'smart_file':
+                    # Extract file path and smart alarm settings
+                    file_path, smart_settings = audio_data
+                    self._play_smart_alarm_file(file_path, smart_settings)
+                elif audio_type == 'smart_tts':
+                    # Extract text and smart alarm settings
+                    tts_text, smart_settings = audio_data
+                    self._play_smart_alarm_tts(tts_text, smart_settings)
                 
                 with self.lock:
                     self.playing = False
@@ -252,17 +260,35 @@ class AudioPlayer:
         """
         self.audio_queue.put((self.PRIORITY_ADHAN, time.time(), ('file', file_path)))
     
-    def play_alarm(self, file_path=None, tts_text=None):
+    def play_alarm(self, file_path=None, tts_text=None, smart_alarm_settings=None):
         """Play alarm audio with high priority.
         
         Args:
             file_path: Path to the alarm audio file
             tts_text: Text to convert to speech for alarm
+            smart_alarm_settings: Dictionary with smart alarm settings:
+                - smart_alarm: Boolean flag to enable/disable smart alarm features
+                - volume_start: Starting volume level for gradual increase (0-100)
+                - volume_end: Target volume level for gradual increase (0-100)
+                - volume_increment: Step size for gradual increase
+                - ramp_duration: Duration in seconds for the volume ramp
         """
         if file_path:
-            self.audio_queue.put((self.PRIORITY_ALARM, time.time(), ('file', file_path)))
+            if smart_alarm_settings and smart_alarm_settings.get('smart_alarm', False):
+                # Use smart alarm with gradual volume increase
+                self.audio_queue.put((self.PRIORITY_ALARM, time.time(), 
+                                     ('smart_file', (file_path, smart_alarm_settings))))
+            else:
+                # Use regular alarm
+                self.audio_queue.put((self.PRIORITY_ALARM, time.time(), ('file', file_path)))
         elif tts_text:
-            self.audio_queue.put((self.PRIORITY_ALARM, time.time(), ('tts', tts_text)))
+            if smart_alarm_settings and smart_alarm_settings.get('smart_alarm', False):
+                # Use smart alarm with gradual volume increase for TTS
+                self.audio_queue.put((self.PRIORITY_ALARM, time.time(), 
+                                     ('smart_tts', (tts_text, smart_alarm_settings))))
+            else:
+                # Use regular TTS alarm
+                self.audio_queue.put((self.PRIORITY_ALARM, time.time(), ('tts', tts_text)))
     
     def play_murattal(self, file_path):
         """Play Murattal audio with lowest priority.
@@ -354,6 +380,149 @@ class AudioPlayer:
         with self.lock:
             return self.current_priority if self.playing else None
     
+    def _play_smart_alarm_file(self, file_path, settings):
+        """Play an audio file with gradually increasing volume.
+        
+        Args:
+            file_path: Path to the audio file
+            settings: Dictionary with smart alarm settings
+        """
+        try:
+            if not os.path.exists(file_path):
+                logger.error(f"Smart alarm audio file not found: {file_path}")
+                return
+            
+            # Extract settings with defaults
+            volume_start = int(settings.get('volume_start', 20))
+            volume_end = int(settings.get('volume_end', 100))
+            volume_increment = int(settings.get('volume_increment', 5))
+            ramp_duration = int(settings.get('ramp_duration', 60))
+            
+            # Validate volume values
+            volume_start = max(0, min(100, volume_start))
+            volume_end = max(0, min(100, volume_end))
+            volume_increment = max(1, min(20, volume_increment))
+            ramp_duration = max(10, min(300, ramp_duration))
+            
+            logger.info(f"Playing smart alarm file with gradual volume increase: {file_path}")
+            logger.info(f"Volume: {volume_start} to {volume_end}, increment: {volume_increment}, duration: {ramp_duration}s")
+            
+            # Load the file
+            pygame.mixer.music.load(file_path)
+            
+            # Set initial volume (scale from 0-100 to 0.0-1.0)
+            current_volume = volume_start / 100.0
+            pygame.mixer.music.set_volume(current_volume)
+            
+            # Calculate timing
+            if volume_end <= volume_start:
+                # No need for gradual increase if end volume is less than or equal to start volume
+                step_delay = ramp_duration
+                logger.info("No volume increase needed, playing at constant volume")
+            else:
+                # Calculate number of steps and delay between volume changes
+                steps = (volume_end - volume_start) // volume_increment
+                step_delay = ramp_duration / max(steps, 1)
+                logger.info(f"Volume increase: {steps} steps with {step_delay:.2f}s delay between steps")
+            
+            # Start playback on a loop to allow for volume changes
+            pygame.mixer.music.play(loops=-1)  # Loop continuously
+            
+            start_time = time.time()
+            elapsed_time = 0
+            
+            # Run volume ramp
+            try:
+                while pygame.mixer.music.get_busy() and elapsed_time < ramp_duration:
+                    # Calculate current target volume
+                    if volume_end > volume_start:
+                        target_volume = min(
+                            volume_end,
+                            volume_start + int((elapsed_time / ramp_duration) * (volume_end - volume_start))
+                        )
+                        # Set new volume if needed
+                        new_volume = target_volume / 100.0
+                        if abs(new_volume - current_volume) >= (volume_increment / 100.0):
+                            current_volume = new_volume
+                            pygame.mixer.music.set_volume(current_volume)
+                            logger.info(f"Smart alarm volume increased to {target_volume}%")
+                    
+                    # Check if we should stop due to interruption
+                    with self.lock:
+                        if not self.playing or self.current_audio != file_path:
+                            logger.info("Smart alarm interrupted")
+                            break
+                    
+                    # Sleep for a short time to avoid CPU hogging
+                    time.sleep(0.1)
+                    
+                    # Update elapsed time
+                    elapsed_time = time.time() - start_time
+                
+                # Continue playing at final volume for a period or until stop signal
+                if pygame.mixer.music.get_busy():
+                    logger.info(f"Smart alarm reached final volume of {volume_end}%, continuing playback")
+                    
+                    # Set final volume
+                    pygame.mixer.music.set_volume(volume_end / 100.0)
+                    
+                    # Continue playing for some additional time
+                    additional_time = 0
+                    max_additional_time = 300  # 5 minutes max
+                    
+                    while pygame.mixer.music.get_busy() and additional_time < max_additional_time:
+                        with self.lock:
+                            if not self.playing or self.current_audio != file_path:
+                                logger.info("Smart alarm playback interrupted")
+                                break
+                        
+                        time.sleep(0.5)
+                        additional_time += 0.5
+                
+                # Stop playback
+                pygame.mixer.music.stop()
+                logger.info("Smart alarm playback finished")
+                
+            except Exception as e:
+                logger.error(f"Error during smart alarm playback: {str(e)}")
+                pygame.mixer.music.stop()
+                
+        except Exception as e:
+            logger.error(f"Error setting up smart alarm: {str(e)}")
+    
+    def _play_smart_alarm_tts(self, tts_text, settings):
+        """Play TTS with gradually increasing volume.
+        
+        Args:
+            tts_text: Text to convert to speech
+            settings: Dictionary with smart alarm settings
+        """
+        try:
+            logger.info(f"Converting text to speech for smart alarm: {tts_text}")
+            
+            # Generate TTS using Google's service
+            tts = gtts.gTTS(text=tts_text, lang='en')
+            
+            # Use a temporary file
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fp:
+                temp_filename = fp.name
+            
+            # Save to the temporary file
+            tts.save(temp_filename)
+            
+            try:
+                # Play with smart alarm features
+                self._play_smart_alarm_file(temp_filename, settings)
+            finally:
+                # Clean up - delete the temporary file
+                try:
+                    os.unlink(temp_filename)
+                except:
+                    pass
+                
+        except Exception as e:
+            logger.error(f"Error with smart alarm TTS: {str(e)}")
+
     def add_murattal_file(self, file_name, file_data):
         """Add a new Murattal file to the collection.
         

@@ -191,8 +191,11 @@ class DatabaseWrapper:
             try:
                 logger.info(f"Executing SQL with label value: '{label_value}'")
                 cursor.execute('''
-                INSERT INTO alarms (time, enabled, repeating, days, is_tts, message, sound_path, label)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO alarms (
+                    time, enabled, repeating, days, is_tts, message, sound_path, label,
+                    smart_alarm, volume_start, volume_end, volume_increment, ramp_duration
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 ''', (
                     alarm.time,
@@ -203,6 +206,11 @@ class DatabaseWrapper:
                     alarm.message,
                     alarm.sound_path,
                     label_value,  # This will be NULL if label_value is None
+                    alarm.smart_alarm,
+                    alarm.volume_start,
+                    alarm.volume_end,
+                    alarm.volume_increment,
+                    alarm.ramp_duration,
                 ))
             except Exception as e:
                 logger.error(f"Error inserting alarm: {str(e)}")
@@ -286,7 +294,8 @@ class DatabaseWrapper:
                 
             cursor.execute('''
             UPDATE alarms
-            SET time = %s, enabled = %s, repeating = %s, days = %s, is_tts = %s, message = %s, sound_path = %s, label = %s
+            SET time = %s, enabled = %s, repeating = %s, days = %s, is_tts = %s, message = %s, sound_path = %s, label = %s,
+                smart_alarm = %s, volume_start = %s, volume_end = %s, volume_increment = %s, ramp_duration = %s
             WHERE id = %s
             ''', (
                 alarm.time,
@@ -297,6 +306,11 @@ class DatabaseWrapper:
                 alarm.message,
                 alarm.sound_path,
                 label_value,  # Use our prepared value
+                alarm.smart_alarm,
+                alarm.volume_start,
+                alarm.volume_end,
+                alarm.volume_increment,
+                alarm.ramp_duration,
                 alarm.id
             ))
             
@@ -375,6 +389,13 @@ class DatabaseWrapper:
             else:
                 alarm.label = None
                 logger.info("Set label to None")
+                
+            # Smart alarm features
+            alarm.smart_alarm = row.get('smart_alarm', False)
+            alarm.volume_start = row.get('volume_start', 20)
+            alarm.volume_end = row.get('volume_end', 100)
+            alarm.volume_increment = row.get('volume_increment', 5)
+            alarm.ramp_duration = row.get('ramp_duration', 60)
             
             # Close resources
             cursor.close()

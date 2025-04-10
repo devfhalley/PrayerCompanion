@@ -161,20 +161,44 @@ class AlarmScheduler:
         """
         logger.info(f"Triggering alarm {alarm.id}")
         
+        # Check if this is a smart alarm with gradual volume increase
+        smart_alarm_settings = None
+        if alarm.smart_alarm:
+            logger.info(f"This is a smart alarm with gradual volume increase")
+            smart_alarm_settings = {
+                'smart_alarm': alarm.smart_alarm,
+                'volume_start': alarm.volume_start,
+                'volume_end': alarm.volume_end,
+                'volume_increment': alarm.volume_increment,
+                'ramp_duration': alarm.ramp_duration
+            }
+        
         if alarm.is_tts:
             # Play TTS message with alarm priority
-            self.audio_player.play_alarm(tts_text=alarm.message)
+            self.audio_player.play_alarm(
+                tts_text=alarm.message,
+                smart_alarm_settings=smart_alarm_settings
+            )
         else:
             # Play sound file with alarm priority
+            sound_path = None
             if alarm.sound_path and os.path.exists(alarm.sound_path):
-                self.audio_player.play_alarm(file_path=alarm.sound_path)
+                sound_path = alarm.sound_path
             else:
                 # Use default alarm sound
-                self.audio_player.play_alarm(file_path=Config.DEFAULT_ALARM_SOUND)
+                sound_path = Config.DEFAULT_ALARM_SOUND
                 
                 # Also announce using TTS that the default sound is being used
-                self.audio_player.play_tts("This is a default alarm sound because the custom sound file was not found.", 
-                                         priority=self.audio_player.PRIORITY_ALARM)
+                self.audio_player.play_tts(
+                    "This is a default alarm sound because the custom sound file was not found.", 
+                    priority=self.audio_player.PRIORITY_ALARM
+                )
+            
+            # Play the alarm with smart alarm settings if enabled
+            self.audio_player.play_alarm(
+                file_path=sound_path,
+                smart_alarm_settings=smart_alarm_settings
+            )
     
     def schedule_alarm(self, alarm):
         """Schedule an alarm.

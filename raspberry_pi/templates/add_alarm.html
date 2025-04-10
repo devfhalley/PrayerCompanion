@@ -73,8 +73,75 @@
                 Enable Alarm
             </label>
         </div>
+
+        <div class="form-group mt-4">
+            <h4>Smart Alarm Settings</h4>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="smart-alarm-toggle" name="smart_alarm">
+                <label class="form-check-label" for="smart-alarm-toggle">
+                    Enable Smart Alarm (Gradual Volume Increase)
+                </label>
+            </div>
+            <div id="smart-alarm-settings" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="volume-start">Starting Volume (%)</label>
+                            <input type="range" class="form-range" id="volume-start" name="volume_start" 
+                                   min="0" max="100" value="20" step="5">
+                            <div class="d-flex justify-content-between">
+                                <span>0%</span>
+                                <span id="volume-start-value">20%</span>
+                                <span>100%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="volume-end">Target Volume (%)</label>
+                            <input type="range" class="form-range" id="volume-end" name="volume_end" 
+                                   min="0" max="100" value="100" step="5">
+                            <div class="d-flex justify-content-between">
+                                <span>0%</span>
+                                <span id="volume-end-value">100%</span>
+                                <span>100%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="volume-increment">Volume Increment (%)</label>
+                            <input type="range" class="form-range" id="volume-increment" name="volume_increment" 
+                                   min="1" max="20" value="5" step="1">
+                            <div class="d-flex justify-content-between">
+                                <span>1%</span>
+                                <span id="volume-increment-value">5%</span>
+                                <span>20%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="ramp-duration">Ramp Duration (seconds)</label>
+                            <input type="range" class="form-range" id="ramp-duration" name="ramp_duration" 
+                                   min="10" max="300" value="60" step="10">
+                            <div class="d-flex justify-content-between">
+                                <span>10s</span>
+                                <span id="ramp-duration-value">60s</span>
+                                <span>300s</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle"></i> Smart alarms gradually increase volume for a gentler wake-up experience.
+                </div>
+            </div>
+        </div>
         
-        <div class="form-group">
+        <div class="form-group mt-4">
             <button type="submit" id="submit-button" class="btn">Save Alarm</button>
             <div id="submit-spinner" class="spinner" style="display: none;">
                 <div class="spinner-border" role="status">
@@ -96,6 +163,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const isTtsRadios = document.querySelectorAll('input[name="is_tts"]');
     const ttsMessage = document.getElementById('tts-message');
+    
+    // Smart alarm elements
+    const smartAlarmToggle = document.getElementById('smart-alarm-toggle');
+    const smartAlarmSettings = document.getElementById('smart-alarm-settings');
+    const volumeStart = document.getElementById('volume-start');
+    const volumeEnd = document.getElementById('volume-end');
+    const volumeIncrement = document.getElementById('volume-increment'); 
+    const rampDuration = document.getElementById('ramp-duration');
+    const volumeStartValue = document.getElementById('volume-start-value');
+    const volumeEndValue = document.getElementById('volume-end-value');
+    const volumeIncrementValue = document.getElementById('volume-increment-value');
+    const rampDurationValue = document.getElementById('ramp-duration-value');
     
     // Set date input to today initially
     document.getElementById('alarm-date').value = formatDateYMD(new Date());
@@ -120,6 +199,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 ttsMessage.style.display = 'none';
             }
         });
+    });
+    
+    // Toggle smart alarm settings
+    smartAlarmToggle.addEventListener('change', function() {
+        smartAlarmSettings.style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Update range slider value displays
+    volumeStart.addEventListener('input', function() {
+        volumeStartValue.textContent = this.value + '%';
+    });
+    
+    volumeEnd.addEventListener('input', function() {
+        volumeEndValue.textContent = this.value + '%';
+    });
+    
+    volumeIncrement.addEventListener('input', function() {
+        volumeIncrementValue.textContent = this.value + '%';
+    });
+    
+    rampDuration.addEventListener('input', function() {
+        rampDurationValue.textContent = this.value + 's';
     });
     
     // Custom submission handling
@@ -175,6 +276,25 @@ document.addEventListener('DOMContentLoaded', function() {
             is_tts: isTts,
             label: document.getElementById('alarm-label').value
         };
+        
+        // Add smart alarm settings if enabled
+        const isSmartAlarm = document.getElementById('smart-alarm-toggle').checked;
+        if (isSmartAlarm) {
+            data.smart_alarm = true;
+            data.volume_start = parseInt(document.getElementById('volume-start').value);
+            data.volume_end = parseInt(document.getElementById('volume-end').value);
+            data.volume_increment = parseInt(document.getElementById('volume-increment').value);
+            data.ramp_duration = parseInt(document.getElementById('ramp-duration').value);
+            
+            // Validate that smart alarm settings make sense
+            if (data.volume_end <= data.volume_start) {
+                showNotification('Target volume must be higher than starting volume for smart alarms', 'error');
+                resetSubmitButton();
+                return;
+            }
+        } else {
+            data.smart_alarm = false;
+        }
         
         // Only set repeating property for repeating alarms
         if (isRepeating) {
