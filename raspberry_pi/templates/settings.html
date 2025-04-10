@@ -7,6 +7,30 @@
 
 <div class="card">
     <div class="card-header">
+        <h2>Upload New Adhan Sound</h2>
+    </div>
+    <div class="card-content">
+        <div class="upload-area" id="adhan-upload-area">
+            <div class="upload-icon">
+                <i class="fas fa-mosque"></i>
+            </div>
+            <p>Drag and drop an adhan MP3 file here or click to browse</p>
+            <input type="file" id="adhan-file" accept=".mp3" style="display: none;">
+        </div>
+        <button id="upload-adhan-button" class="btn btn-primary" style="margin-top: 10px;">
+            <i class="fas fa-mosque"></i> Upload Adhan Sound
+        </button>
+        <div class="upload-progress" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <p class="progress-text">Uploading... 0%</p>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
         <h2>Adhan (Prayer Call) Settings</h2>
     </div>
     <div class="card-content">
@@ -114,26 +138,7 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <h2>Upload New Adhan Sound</h2>
-    </div>
-    <div class="card-content">
-        <div class="upload-area" id="adhan-upload-area">
-            <div class="upload-icon">
-                <i class="fas fa-cloud-upload-alt"></i>
-            </div>
-            <p>Drag and drop an adhan MP3 file here or click to browse</p>
-            <input type="file" id="adhan-file" accept=".mp3" style="display: none;">
-        </div>
-        <div class="upload-progress" style="display: none;">
-            <div class="progress-bar">
-                <div class="progress-fill"></div>
-            </div>
-            <p class="progress-text">Uploading... 0%</p>
-        </div>
-    </div>
-</div>
+
 
 <div class="card">
     <div class="card-header">
@@ -252,8 +257,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup adhan upload functionality
     const adhanUploadArea = document.getElementById('adhan-upload-area');
     const adhanFileInput = document.getElementById('adhan-file');
+    const uploadAdhanButton = document.getElementById('upload-adhan-button');
     
     adhanUploadArea.addEventListener('click', function() {
+        adhanFileInput.click();
+    });
+    
+    uploadAdhanButton.addEventListener('click', function() {
         adhanFileInput.click();
     });
     
@@ -591,9 +601,6 @@ function uploadAdhanFile(file) {
         return;
     }
     
-    const formData = new FormData();
-    formData.append('file', file);
-    
     const uploadArea = document.getElementById('adhan-upload-area');
     const progressContainer = document.querySelector('.upload-progress');
     const progressFill = document.querySelector('.progress-fill');
@@ -602,29 +609,82 @@ function uploadAdhanFile(file) {
     uploadArea.style.display = 'none';
     progressContainer.style.display = 'block';
     
-    fetch('/adhan/upload', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        uploadArea.style.display = 'block';
-        progressContainer.style.display = 'none';
+    // Convert file to base64
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = function() {
+        // Extract the base64 data (remove data:audio/mp3;base64, prefix)
+        const base64data = reader.result.split(',')[1];
         
-        if (data.status === 'success') {
-            showNotification('Adhan sound uploaded successfully', 'success');
-            // Reload the page to show the new adhan in the lists
-            window.location.reload();
-        } else {
-            showNotification('Error uploading adhan sound', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
+        // Prepare the JSON payload
+        const payload = {
+            file_name: file.name,
+            file_content: base64data
+        };
+        
+        // Send the file to the server
+        fetch('/adhan/upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            console.log('Adhan upload response status:', response.status);
+            return response.json().then(data => {
+                return {
+                    status: response.status,
+                    data: data
+                };
+            });
+        })
+        .then(result => {
+            uploadArea.style.display = 'block';
+            progressContainer.style.display = 'none';
+            
+            // Clear progress interval
+            clearInterval(progressInterval);
+            
+            console.log('Adhan upload result:', result);
+            
+            if (result.status === 200 && result.data.status === 'success') {
+                // Show a more prominent success message
+                const successMessage = `Adhan sound "${file.name}" uploaded successfully!`;
+                showNotification(successMessage, 'success');
+                
+                // Add a delay before reload to ensure the notification is seen
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                // Show a more detailed error message
+                const errorMessage = `Error uploading adhan: ${
+                    result.data && result.data.message ? result.data.message : 'Server error'
+                }`;
+                showNotification(errorMessage, 'error');
+                console.error('Upload error:', result);
+            }
+        })
+        .catch(error => {
+            console.error('Adhan upload error:', error);
+            uploadArea.style.display = 'block';
+            progressContainer.style.display = 'none';
+            
+            // Clear progress interval
+            clearInterval(progressInterval);
+            
+            // Show a more detailed error message
+            showNotification('Network error during adhan upload. Please try again.', 'error');
+        });
+    };
+    
+    reader.onerror = function(error) {
+        console.error('Error reading file:', error);
         uploadArea.style.display = 'block';
         progressContainer.style.display = 'none';
-        showNotification('Error uploading adhan sound', 'error');
-    });
+        showNotification('Error reading file', 'error');
+    };
     
     // Simulate upload progress (since we don't have a real progress event)
     let progress = 0;

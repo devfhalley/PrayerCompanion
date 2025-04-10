@@ -704,31 +704,80 @@ def get_adhan_sounds():
 @app.route('/adhan/upload', methods=['POST'])
 def upload_adhan():
     """Upload a new adhan sound file."""
+    app.logger.info("Adhan upload request received")
+    
+    # Check if request has JSON data
+    if not request.is_json:
+        app.logger.error("Adhan upload error: Request does not contain JSON data")
+        return jsonify({
+            "status": "error", 
+            "message": "Request must contain JSON data"
+        }), 400
+    
     data = request.json
     file_name = data.get('file_name')
     file_content = data.get('file_content')  # Base64 encoded
     
-    if not file_name or not file_content:
-        return jsonify({"status": "error", "message": "Missing file_name or file_content"}), 400
+    app.logger.info(f"Processing adhan upload for file: {file_name}")
+    
+    if not file_name:
+        app.logger.error("Adhan upload error: Missing file_name")
+        return jsonify({
+            "status": "error", 
+            "message": "Missing file_name parameter"
+        }), 400
+    
+    if not file_content:
+        app.logger.error("Adhan upload error: Missing file_content")
+        return jsonify({
+            "status": "error", 
+            "message": "Missing file_content parameter"
+        }), 400
+    
+    # Validate that the file has a .mp3 extension
+    if not file_name.lower().endswith('.mp3'):
+        app.logger.error(f"Adhan upload error: File {file_name} is not an MP3 file")
+        return jsonify({
+            "status": "error", 
+            "message": "File must be an MP3 file"
+        }), 400
     
     try:
         # Create sounds directory if it doesn't exist
         sounds_dir = os.path.join(os.path.dirname(__file__), "sounds")
         os.makedirs(sounds_dir, exist_ok=True)
+        app.logger.info(f"Sounds directory ensured: {sounds_dir}")
         
         # Save the file
         import base64
+        try:
+            decoded_content = base64.b64decode(file_content)
+            app.logger.info(f"Successfully decoded base64 content for {file_name}")
+        except Exception as decode_error:
+            app.logger.error(f"Base64 decoding error: {str(decode_error)}")
+            return jsonify({
+                "status": "error", 
+                "message": f"Invalid base64 content: {str(decode_error)}"
+            }), 400
+        
         file_path = os.path.join(sounds_dir, file_name)
         with open(file_path, 'wb') as f:
-            f.write(base64.b64decode(file_content))
+            f.write(decoded_content)
+        
+        app.logger.info(f"Adhan sound file saved successfully at: {file_path}")
         
         return jsonify({
             "status": "success", 
-            "message": "Adhan sound uploaded", 
-            "file_path": file_path
+            "message": f"Adhan sound '{file_name}' uploaded successfully", 
+            "file_path": file_path,
+            "file_size": len(decoded_content)
         })
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        app.logger.error(f"Adhan upload error: {str(e)}")
+        return jsonify({
+            "status": "error", 
+            "message": f"Error saving file: {str(e)}"
+        }), 500
 
 @app.route('/adhan/set-default', methods=['POST'])
 def set_default_adhan():
