@@ -51,9 +51,38 @@ def init_db():
             name TEXT NOT NULL,
             time TIMESTAMP NOT NULL,
             enabled BOOLEAN NOT NULL,
-            custom_sound TEXT
+            custom_sound TEXT,
+            date_str TEXT
         )
         ''')
+        
+        # Check if date_str column exists in prayer_times table
+        cursor.execute('''
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'prayer_times' AND column_name = 'date_str'
+        ''')
+        
+        if not cursor.fetchone():
+            # Add date_str column if it doesn't exist and make it not null
+            logger.info("Adding 'date_str' column to prayer_times table")
+            cursor.execute('''
+            ALTER TABLE prayer_times
+            ADD COLUMN date_str TEXT
+            ''')
+            
+            # Populate date_str for existing records
+            cursor.execute('''
+            UPDATE prayer_times
+            SET date_str = TO_CHAR(time, 'YYYY-MM-DD')
+            WHERE date_str IS NULL
+            ''')
+            
+            # Make date_str not null once it's populated
+            cursor.execute('''
+            ALTER TABLE prayer_times
+            ALTER COLUMN date_str SET NOT NULL
+            ''')
         
         # Create youtube_videos table
         cursor.execute('''
@@ -292,14 +321,15 @@ class DatabaseWrapper:
             cursor = conn.cursor()
             
             cursor.execute('''
-            INSERT INTO prayer_times (name, time, enabled, custom_sound)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO prayer_times (name, time, enabled, custom_sound, date_str)
+            VALUES (%s, %s, %s, %s, %s)
             RETURNING id
             ''', (
                 prayer_time.name,
                 prayer_time.time,
                 prayer_time.enabled,
-                prayer_time.custom_sound
+                prayer_time.custom_sound,
+                prayer_time.date_str
             ))
             
             result = cursor.fetchone()
@@ -319,15 +349,20 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
+            # Ensure date_str is set
+            if not hasattr(prayer_time, 'date_str') or not prayer_time.date_str:
+                prayer_time.date_str = prayer_time.time.strftime('%Y-%m-%d')
+            
             cursor.execute('''
             UPDATE prayer_times
-            SET name = %s, time = %s, enabled = %s, custom_sound = %s
+            SET name = %s, time = %s, enabled = %s, custom_sound = %s, date_str = %s
             WHERE id = %s
             ''', (
                 prayer_time.name,
                 prayer_time.time,
                 prayer_time.enabled,
                 prayer_time.custom_sound,
+                prayer_time.date_str,
                 prayer_time.id
             ))
     
@@ -343,19 +378,52 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
-            # Get start and end of the day
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            next_day = date_obj + timedelta(days=1)
-            
-            cursor.execute('''
-            SELECT * FROM prayer_times 
-            WHERE time >= %s AND time < %s
-            ORDER BY time
-            ''', (date_obj, next_day))
-            
-            rows = cursor.fetchall()
-            
-            return [self._row_to_prayer_time(row) for row in rows]
+            try:
+                # First try to query by date_str (this is more reliable)
+                cursor.execute('''
+                SELECT * FROM prayer_times 
+                WHERE date_str = %s
+                ORDER BY time
+                ''', (date_str,))
+                
+                rows = cursor.fetchall()
+                
+                if rows:
+                    logger.info(f"Found {len(rows)} prayer times for date {date_str} using date_str field")
+                    return [self._row_to_prayer_time(row) for row in rows]
+                
+                # Fallback to the time range method
+                logger.info(f"No prayer times found using date_str field, falling back to time range for {date_str}")
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                next_day = date_obj + timedelta(days=1)
+                
+                cursor.execute('''
+                SELECT * FROM prayer_times 
+                WHERE time >= %s AND time < %s
+                ORDER BY time
+                ''', (date_obj, next_day))
+                
+                rows = cursor.fetchall()
+                
+                # If we found results using time range, update their date_str
+                if rows:
+                    logger.info(f"Found {len(rows)} prayer times using time range for {date_str}, updating date_str field")
+                    prayer_times = [self._row_to_prayer_time(row) for row in rows]
+                    
+                    # Update date_str in database for these prayer times
+                    for prayer in prayer_times:
+                        if not prayer.date_str or prayer.date_str != date_str:
+                            prayer.date_str = date_str
+                            self.update_prayer_time(prayer)
+                            logger.info(f"Updated date_str for prayer {prayer.id} to {date_str}")
+                    
+                    return prayer_times
+                
+                return []
+                
+            except Exception as e:
+                logger.error(f"Error getting prayer times for date {date_str}: {str(e)}")
+                return []
     
     def get_todays_prayer_times(self):
         """Get prayer times for today.
@@ -400,12 +468,30 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            
-            cursor.execute('''
-            DELETE FROM prayer_times 
-            WHERE time >= %s
-            ''', (date_obj,))
+            # Use both date_str field and time field for deletion to ensure all matching records are removed
+            try:
+                # First try to delete by date_str (this will work for records that have date_str set)
+                cursor.execute('''
+                DELETE FROM prayer_times 
+                WHERE date_str >= %s
+                ''', (date_str,))
+                
+                affected_rows = cursor.rowcount
+                logger.info(f"Deleted {affected_rows} prayer times using date_str field from {date_str} onwards")
+                
+                # Also delete by time range to catch any records that don't have date_str set
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                
+                cursor.execute('''
+                DELETE FROM prayer_times 
+                WHERE time >= %s AND (date_str IS NULL OR date_str = '')
+                ''', (date_obj,))
+                
+                affected_rows = cursor.rowcount
+                logger.info(f"Deleted {affected_rows} additional prayer times using time field from {date_str} onwards")
+                
+            except Exception as e:
+                logger.error(f"Error deleting prayer times from date {date_str}: {str(e)}")
             
             logger.info(f"Deleted prayer times from {date_str} onwards")
     
@@ -487,6 +573,12 @@ class DatabaseWrapper:
         prayer_time.time = row['time']
         prayer_time.enabled = row['enabled']
         prayer_time.custom_sound = row['custom_sound']
+        
+        # Add date_str from database or extract it from time if missing
+        if 'date_str' in row and row['date_str']:
+            prayer_time.date_str = row['date_str']
+        elif prayer_time.time:
+            prayer_time.date_str = prayer_time.time.strftime('%Y-%m-%d')
         
         return prayer_time
         

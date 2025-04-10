@@ -134,7 +134,8 @@ class PrayerScheduler:
                     prayer = PrayerTime(
                         name=prayer_name,
                         time=prayer_time,
-                        enabled=True
+                        enabled=True,
+                        date_str=date_str  # Explicitly set date_str
                     )
                     
                     # Save to database

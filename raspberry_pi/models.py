@@ -169,7 +169,7 @@ class Alarm:
 class PrayerTime:
     """Prayer time model."""
     
-    def __init__(self, name=None, time=None, enabled=True, custom_sound=None):
+    def __init__(self, name=None, time=None, enabled=True, custom_sound=None, date_str=None):
         """Initialize a new PrayerTime.
         
         Args:
@@ -177,12 +177,18 @@ class PrayerTime:
             time: Prayer time as datetime
             enabled: Whether the prayer notification is enabled
             custom_sound: Path to custom sound file
+            date_str: Date string in YYYY-MM-DD format
         """
         self.id = None
         self.name = name
         self.time = time
         self.enabled = enabled
         self.custom_sound = custom_sound
+        # If date_str is not provided, extract it from time
+        if date_str is None and time is not None:
+            self.date_str = time.strftime('%Y-%m-%d')
+        else:
+            self.date_str = date_str
     
     def to_dict(self):
         """Convert the PrayerTime to a dictionary.
@@ -195,6 +201,7 @@ class PrayerTime:
             'name': self.name,
             'time': self.time.isoformat() if self.time else None,
             'time_str': self.time.strftime('%H:%M') if self.time else None,
+            'date_str': self.date_str,
             'enabled': self.enabled,
             'custom_sound': self.custom_sound
         }

@@ -63,9 +63,38 @@ def init_db():
             name TEXT NOT NULL,
             time TIMESTAMP NOT NULL,
             enabled BOOLEAN NOT NULL,
-            custom_sound TEXT
+            custom_sound TEXT,
+            date_str TEXT
         )
         ''')
+        
+        # Check if date_str column exists in prayer_times table
+        cursor.execute('''
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'prayer_times' AND column_name = 'date_str'
+        ''')
+        
+        if not cursor.fetchone():
+            # Add date_str column if it doesn't exist and make it not null
+            logger.info("Adding 'date_str' column to prayer_times table")
+            cursor.execute('''
+            ALTER TABLE prayer_times
+            ADD COLUMN date_str TEXT
+            ''')
+            
+            # Populate date_str for existing records
+            cursor.execute('''
+            UPDATE prayer_times
+            SET date_str = TO_CHAR(time, 'YYYY-MM-DD')
+            WHERE date_str IS NULL
+            ''')
+            
+            # Make date_str not null once it's populated
+            cursor.execute('''
+            ALTER TABLE prayer_times
+            ALTER COLUMN date_str SET NOT NULL
+            ''')
         
         # Create youtube_videos table
         cursor.execute('''
@@ -500,15 +529,25 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
+            # Ensure date_str is set
+            if not hasattr(prayer_time, 'date_str') or not prayer_time.date_str:
+                if prayer_time.time:
+                    prayer_time.date_str = prayer_time.time.strftime('%Y-%m-%d')
+                    logger.info(f"Setting date_str for prayer time: {prayer_time.date_str}")
+                else:
+                    logger.error("Cannot set date_str: prayer_time.time is None")
+                    return None
+            
             cursor.execute('''
-            INSERT INTO prayer_times (name, time, enabled, custom_sound)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO prayer_times (name, time, enabled, custom_sound, date_str)
+            VALUES (%s, %s, %s, %s, %s)
             RETURNING id
             ''', (
                 prayer_time.name,
                 prayer_time.time,
                 prayer_time.enabled,
-                prayer_time.custom_sound
+                prayer_time.custom_sound,
+                prayer_time.date_str
             ))
             
             result = cursor.fetchone()
@@ -528,15 +567,22 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
+            # Ensure date_str is set
+            if not hasattr(prayer_time, 'date_str') or not prayer_time.date_str:
+                if prayer_time.time:
+                    prayer_time.date_str = prayer_time.time.strftime('%Y-%m-%d')
+                    logger.info(f"Setting date_str for prayer time update: {prayer_time.date_str}")
+            
             cursor.execute('''
             UPDATE prayer_times
-            SET name = %s, time = %s, enabled = %s, custom_sound = %s
+            SET name = %s, time = %s, enabled = %s, custom_sound = %s, date_str = %s
             WHERE id = %s
             ''', (
                 prayer_time.name,
                 prayer_time.time,
                 prayer_time.enabled,
                 prayer_time.custom_sound,
+                prayer_time.date_str,
                 prayer_time.id
             ))
     
@@ -552,19 +598,52 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
-            # Get start and end of the day
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            next_day = date_obj + timedelta(days=1)
-            
-            cursor.execute('''
-            SELECT * FROM prayer_times 
-            WHERE time >= %s AND time < %s
-            ORDER BY time
-            ''', (date_obj, next_day))
-            
-            rows = cursor.fetchall()
-            
-            return [self._row_to_prayer_time(row) for row in rows]
+            try:
+                # First try to query by date_str (this is more reliable)
+                cursor.execute('''
+                SELECT * FROM prayer_times 
+                WHERE date_str = %s
+                ORDER BY time
+                ''', (date_str,))
+                
+                rows = cursor.fetchall()
+                
+                if rows:
+                    logger.info(f"Found {len(rows)} prayer times for date {date_str} using date_str field")
+                    return [self._row_to_prayer_time(row) for row in rows]
+                
+                # Fallback to the time range method
+                logger.info(f"No prayer times found using date_str field, falling back to time range for {date_str}")
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                next_day = date_obj + timedelta(days=1)
+                
+                cursor.execute('''
+                SELECT * FROM prayer_times 
+                WHERE time >= %s AND time < %s
+                ORDER BY time
+                ''', (date_obj, next_day))
+                
+                rows = cursor.fetchall()
+                
+                # If we found results using time range, update their date_str
+                if rows:
+                    logger.info(f"Found {len(rows)} prayer times using time range for {date_str}, updating date_str field")
+                    prayer_times = [self._row_to_prayer_time(row) for row in rows]
+                    
+                    # Update date_str in database for these prayer times
+                    for prayer in prayer_times:
+                        if not prayer.date_str or prayer.date_str != date_str:
+                            prayer.date_str = date_str
+                            self.update_prayer_time(prayer)
+                            logger.info(f"Updated date_str for prayer {prayer.id} to {date_str}")
+                    
+                    return prayer_times
+                
+                return []
+                
+            except Exception as e:
+                logger.error(f"Error getting prayer times for date {date_str}: {str(e)}")
+                return []
     
     def get_todays_prayer_times(self):
         """Get prayer times for today.
@@ -609,12 +688,30 @@ class DatabaseWrapper:
         with _get_db_connection() as conn:
             cursor = conn.cursor()
             
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            
-            cursor.execute('''
-            DELETE FROM prayer_times 
-            WHERE time >= %s
-            ''', (date_obj,))
+            # Use both date_str field and time field for deletion to ensure all matching records are removed
+            try:
+                # First try to delete by date_str (this will work for records that have date_str set)
+                cursor.execute('''
+                DELETE FROM prayer_times 
+                WHERE date_str >= %s
+                ''', (date_str,))
+                
+                affected_rows = cursor.rowcount
+                logger.info(f"Deleted {affected_rows} prayer times using date_str field from {date_str} onwards")
+                
+                # Also delete by time range to catch any records that don't have date_str set
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                
+                cursor.execute('''
+                DELETE FROM prayer_times 
+                WHERE time >= %s AND (date_str IS NULL OR date_str = '')
+                ''', (date_obj,))
+                
+                affected_rows = cursor.rowcount
+                logger.info(f"Deleted {affected_rows} additional prayer times using time field from {date_str} onwards")
+                
+            except Exception as e:
+                logger.error(f"Error deleting prayer times from date {date_str}: {str(e)}")
             
             logger.info(f"Deleted prayer times from {date_str} onwards")
     
@@ -736,6 +833,14 @@ class DatabaseWrapper:
         prayer_time.enabled = row['enabled']
         prayer_time.custom_sound = row['custom_sound']
         
+        # Handle date_str field
+        if 'date_str' in row and row['date_str']:
+            prayer_time.date_str = row['date_str']
+        elif prayer_time.time:
+            # If date_str is not in the database but we have time, generate it
+            prayer_time.date_str = prayer_time.time.strftime('%Y-%m-%d')
+            logger.info(f"Generated date_str from time field: {prayer_time.date_str}")
+        
         return prayer_time
         
     # YouTube Video Management
@@ -749,28 +854,46 @@ class DatabaseWrapper:
         Returns:
             YouTubeVideo ID
         """
-        with _get_db_connection() as conn:
-            # Use RealDictCursor to get column names
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
-            cursor.execute('''
-            INSERT INTO youtube_videos (url, title, enabled, position)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id
-            ''', (
-                youtube_video.url,
-                youtube_video.title,
-                youtube_video.enabled,
-                youtube_video.position
-            ))
-            
-            result = cursor.fetchone()
-            if result:
-                youtube_video.id = result['id']
-                return youtube_video.id
-            else:
-                logger.error("Failed to retrieve ID of newly inserted YouTube video")
-                return None
+        try:
+            with _get_db_connection() as conn:
+                # Use RealDictCursor to get column names
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # First check if the youtube_videos table exists
+                cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'youtube_videos'
+                )
+                """)
+                result = cursor.fetchone()
+                table_exists = result and result.get('exists', False)
+                
+                if not table_exists:
+                    logger.warning("Cannot add YouTube video: table does not exist")
+                    return None
+                
+                cursor.execute('''
+                INSERT INTO youtube_videos (url, title, enabled, position)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                ''', (
+                    youtube_video.url,
+                    youtube_video.title,
+                    youtube_video.enabled,
+                    youtube_video.position
+                ))
+                
+                result = cursor.fetchone()
+                if result:
+                    youtube_video.id = result['id']
+                    return youtube_video.id
+                else:
+                    logger.error("Failed to retrieve ID of newly inserted YouTube video")
+                    return None
+        except Exception as e:
+            logger.error(f"Error adding YouTube video: {str(e)}")
+            return None
                 
     def update_youtube_video(self, youtube_video):
         """Update an existing YouTube video.
@@ -778,21 +901,40 @@ class DatabaseWrapper:
         Args:
             youtube_video: YouTubeVideo object to update
         """
-        with _get_db_connection() as conn:
-            # Use RealDictCursor for consistency
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
-            cursor.execute('''
-            UPDATE youtube_videos
-            SET url = %s, title = %s, enabled = %s, position = %s
-            WHERE id = %s
-            ''', (
-                youtube_video.url,
-                youtube_video.title,
-                youtube_video.enabled,
-                youtube_video.position,
-                youtube_video.id
-            ))
+        try:
+            with _get_db_connection() as conn:
+                # Use RealDictCursor for consistency
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # First check if the youtube_videos table exists
+                cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'youtube_videos'
+                )
+                """)
+                result = cursor.fetchone()
+                table_exists = result and result.get('exists', False)
+                
+                if not table_exists:
+                    logger.warning("Cannot update YouTube video: table does not exist")
+                    return
+                
+                cursor.execute('''
+                UPDATE youtube_videos
+                SET url = %s, title = %s, enabled = %s, position = %s
+                WHERE id = %s
+                ''', (
+                    youtube_video.url,
+                    youtube_video.title,
+                    youtube_video.enabled,
+                    youtube_video.position,
+                    youtube_video.id
+                ))
+                
+                logger.info(f"Successfully updated YouTube video with ID {youtube_video.id}")
+        except Exception as e:
+            logger.error(f"Error updating YouTube video: {str(e)}")
             
     def delete_youtube_video(self, video_id):
         """Delete a YouTube video.
@@ -800,11 +942,29 @@ class DatabaseWrapper:
         Args:
             video_id: ID of the YouTube video to delete
         """
-        with _get_db_connection() as conn:
-            # Use RealDictCursor for consistency
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
-            cursor.execute('DELETE FROM youtube_videos WHERE id = %s', (video_id,))
+        try:
+            with _get_db_connection() as conn:
+                # Use RealDictCursor for consistency
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # First check if the youtube_videos table exists
+                cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'youtube_videos'
+                )
+                """)
+                result = cursor.fetchone()
+                table_exists = result and result.get('exists', False)
+                
+                if not table_exists:
+                    logger.warning("Cannot delete YouTube video: table does not exist")
+                    return
+                
+                cursor.execute('DELETE FROM youtube_videos WHERE id = %s', (video_id,))
+                logger.info(f"Successfully deleted YouTube video with ID {video_id}")
+        except Exception as e:
+            logger.error(f"Error deleting YouTube video: {str(e)}")
             
     def get_youtube_video(self, video_id):
         """Get a YouTube video by ID.
@@ -815,16 +975,34 @@ class DatabaseWrapper:
         Returns:
             YouTubeVideo object or None
         """
-        with _get_db_connection() as conn:
-            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
-            dict_cursor.execute('SELECT * FROM youtube_videos WHERE id = %s', (video_id,))
-            row = dict_cursor.fetchone()
-            
-            if row:
-                return self._row_to_youtube_video(row)
-            else:
-                return None
+        try:
+            with _get_db_connection() as conn:
+                dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # First check if the youtube_videos table exists
+                dict_cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'youtube_videos'
+                )
+                """)
+                result = dict_cursor.fetchone()
+                table_exists = result and result.get('exists', False)
+                
+                if not table_exists:
+                    logger.warning("Cannot get YouTube video: table does not exist")
+                    return None
+                
+                dict_cursor.execute('SELECT * FROM youtube_videos WHERE id = %s', (video_id,))
+                row = dict_cursor.fetchone()
+                
+                if row:
+                    return self._row_to_youtube_video(row)
+                else:
+                    return None
+        except Exception as e:
+            logger.error(f"Error getting YouTube video {video_id}: {str(e)}")
+            return None
                 
     def get_all_youtube_videos(self):
         """Get all YouTube videos.
@@ -832,13 +1010,31 @@ class DatabaseWrapper:
         Returns:
             List of YouTubeVideo objects
         """
-        with _get_db_connection() as conn:
-            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
-            dict_cursor.execute('SELECT * FROM youtube_videos ORDER BY position')
-            rows = dict_cursor.fetchall()
-            
-            return [self._row_to_youtube_video(row) for row in rows]
+        try:
+            with _get_db_connection() as conn:
+                dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # First check if the youtube_videos table exists
+                dict_cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'youtube_videos'
+                )
+                """)
+                result = dict_cursor.fetchone()
+                table_exists = result and result.get('exists', False)
+                
+                if not table_exists:
+                    logger.warning("YouTube videos table does not exist")
+                    return []
+                
+                dict_cursor.execute('SELECT * FROM youtube_videos ORDER BY position')
+                rows = dict_cursor.fetchall()
+                
+                return [self._row_to_youtube_video(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error getting YouTube videos: {str(e)}")
+            return []
             
     def get_enabled_youtube_videos(self):
         """Get all enabled YouTube videos.
@@ -846,13 +1042,31 @@ class DatabaseWrapper:
         Returns:
             List of enabled YouTubeVideo objects
         """
-        with _get_db_connection() as conn:
-            dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
-            dict_cursor.execute('SELECT * FROM youtube_videos WHERE enabled = TRUE ORDER BY position')
-            rows = dict_cursor.fetchall()
-            
-            return [self._row_to_youtube_video(row) for row in rows]
+        try:
+            with _get_db_connection() as conn:
+                dict_cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # First check if the youtube_videos table exists
+                dict_cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'youtube_videos'
+                )
+                """)
+                result = dict_cursor.fetchone()
+                table_exists = result and result.get('exists', False)
+                
+                if not table_exists:
+                    logger.warning("YouTube videos table does not exist")
+                    return []
+                
+                dict_cursor.execute('SELECT * FROM youtube_videos WHERE enabled = TRUE ORDER BY position')
+                rows = dict_cursor.fetchall()
+                
+                return [self._row_to_youtube_video(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error getting enabled YouTube videos: {str(e)}")
+            return []
             
     def reorder_youtube_videos(self, video_ids):
         """Reorder YouTube videos.
@@ -860,17 +1074,36 @@ class DatabaseWrapper:
         Args:
             video_ids: List of video IDs in the desired order
         """
-        with _get_db_connection() as conn:
-            # Use RealDictCursor for consistency
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
-            # Update positions in a transaction
-            for position, video_id in enumerate(video_ids):
-                cursor.execute('''
-                UPDATE youtube_videos
-                SET position = %s
-                WHERE id = %s
-                ''', (position, video_id))
+        try:
+            with _get_db_connection() as conn:
+                # Use RealDictCursor for consistency
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                
+                # First check if the youtube_videos table exists
+                cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'youtube_videos'
+                )
+                """)
+                result = cursor.fetchone()
+                table_exists = result and result.get('exists', False)
+                
+                if not table_exists:
+                    logger.warning("Cannot reorder videos: YouTube videos table does not exist")
+                    return
+                
+                # Update positions in a transaction
+                for position, video_id in enumerate(video_ids):
+                    cursor.execute('''
+                    UPDATE youtube_videos
+                    SET position = %s
+                    WHERE id = %s
+                    ''', (position, video_id))
+                
+                logger.info(f"Successfully reordered {len(video_ids)} YouTube videos")
+        except Exception as e:
+            logger.error(f"Error reordering YouTube videos: {str(e)}")
                 
     def _row_to_youtube_video(self, row):
         """Convert a database row to a YouTubeVideo object.
