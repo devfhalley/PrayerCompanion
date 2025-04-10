@@ -800,12 +800,16 @@ def set_default_adhan():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/adhan/set-for-prayer', methods=['POST'])
+@app.route('/adhan/set-prayer', methods=['POST'])
 def set_adhan_for_prayer():
     """Set a custom adhan sound for a specific prayer."""
     data = request.json
     prayer_name = data.get('prayer_name')
     file_path = data.get('file_path')
     date_str = data.get('date')  # Optional, defaults to today
+    
+    # Log request details for debugging
+    app.logger.info(f"Setting adhan for prayer {prayer_name} with file path {file_path}")
     
     if not prayer_name or not file_path or not os.path.exists(file_path):
         return jsonify({"status": "error", "message": "Invalid prayer name or file path"}), 400

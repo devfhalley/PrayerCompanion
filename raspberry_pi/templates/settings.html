@@ -388,50 +388,82 @@ function testAdhanForPrayer(prayer) {
 
 // Function to set default adhan
 function setDefaultAdhan(soundPath) {
-    fetch('/adhan/default', {
+    console.log("Setting default adhan with path:", soundPath);
+    
+    fetch('/adhan/set-default', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ sound_path: soundPath })
+        body: JSON.stringify({ file_path: soundPath })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            showNotification('Default adhan sound updated', 'success');
+    .then(response => {
+        console.log('Default adhan response status:', response.status);
+        return response.json().then(data => {
+            return {
+                status: response.status,
+                data: data
+            };
+        });
+    })
+    .then(result => {
+        console.log('Default adhan result:', result);
+        
+        if (result.status === 200 && result.data.status === 'success') {
+            showNotification('Default adhan sound updated successfully', 'success');
         } else {
-            showNotification('Error updating default adhan', 'error');
+            const errorMessage = result.data && result.data.message 
+                ? `Error updating default adhan: ${result.data.message}` 
+                : 'Error updating default adhan';
+            showNotification(errorMessage, 'error');
+            console.error('Default adhan update error:', result);
         }
     })
     .catch(error => {
-        console.error('Error:', error);
+        console.error('Error setting default adhan:', error);
         showNotification('Error updating default adhan', 'error');
     });
 }
 
 // Function to set adhan for a specific prayer
 function setAdhanForPrayer(prayer, soundPath) {
-    fetch('/adhan/prayer', {
+    console.log("Setting adhan for prayer:", prayer, "with path:", soundPath);
+    
+    fetch('/adhan/set-prayer', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
             prayer_name: prayer,
-            sound_path: soundPath
+            file_path: soundPath
         })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            showNotification(`Adhan for ${prayer} updated`, 'success');
+    .then(response => {
+        console.log('Adhan for prayer response status:', response.status);
+        return response.json().then(data => {
+            return {
+                status: response.status,
+                data: data
+            };
+        });
+    })
+    .then(result => {
+        console.log('Adhan for prayer result:', result);
+        
+        if (result.status === 200 && result.data.status === 'success') {
+            showNotification(`Adhan for ${prayer} updated successfully`, 'success');
         } else {
-            showNotification('Error updating adhan for prayer', 'error');
+            const errorMessage = result.data && result.data.message 
+                ? `Error updating adhan for ${prayer}: ${result.data.message}` 
+                : `Error updating adhan for ${prayer}`;
+            showNotification(errorMessage, 'error');
+            console.error('Adhan for prayer update error:', result);
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        showNotification('Error updating adhan for prayer', 'error');
+        console.error('Error setting adhan for prayer:', error);
+        showNotification(`Error updating adhan for ${prayer}`, 'error');
     });
 }
 
