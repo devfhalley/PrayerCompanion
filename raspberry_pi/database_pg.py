@@ -443,6 +443,13 @@ class DatabaseWrapper:
                 label_value = row_dict.get('label')
                 alarm.label = str(label_value) if label_value else None
                 
+                # Smart alarm fields
+                alarm.smart_alarm = row_dict.get('smart_alarm', False)
+                alarm.volume_start = row_dict.get('volume_start', 20)
+                alarm.volume_end = row_dict.get('volume_end', 100)
+                alarm.volume_increment = row_dict.get('volume_increment', 5)
+                alarm.ramp_duration = row_dict.get('ramp_duration', 60)
+                
                 alarms.append(alarm)
                 
             return alarms
@@ -482,6 +489,12 @@ class DatabaseWrapper:
                 label_value = row_dict.get('label')
                 alarm.label = str(label_value) if label_value else None
                 
+                # Smart alarm fields
+                alarm.smart_alarm = row_dict.get('smart_alarm', False)
+                alarm.volume_start = row_dict.get('volume_start', 20)
+                alarm.volume_end = row_dict.get('volume_end', 100)
+                alarm.volume_increment = row_dict.get('volume_increment', 5)
+                alarm.ramp_duration = row_dict.get('ramp_duration', 60)
                 alarms.append(alarm)
                 
             return alarms
@@ -534,6 +547,12 @@ class DatabaseWrapper:
                 label_value = row_dict.get('label')
                 alarm.label = str(label_value) if label_value else None
                 
+                # Smart alarm fields
+                alarm.smart_alarm = row_dict.get('smart_alarm', False)
+                alarm.volume_start = row_dict.get('volume_start', 20)
+                alarm.volume_end = row_dict.get('volume_end', 100)
+                alarm.volume_increment = row_dict.get('volume_increment', 5)
+                alarm.ramp_duration = row_dict.get('ramp_duration', 60)
                 alarms.append(alarm)
                 
             return alarms
@@ -808,6 +827,17 @@ class DatabaseWrapper:
                 else:
                     alarm.label = str(label_value)  # Ensure it's a string
                     logger.info(f"Setting label to: '{alarm.label}'")
+                
+                # Smart alarm fields
+                alarm.smart_alarm = row_dict.get('smart_alarm', False)
+                alarm.volume_start = row_dict.get('volume_start', 20)  # Default starting volume
+                alarm.volume_end = row_dict.get('volume_end', 100)  # Default target volume
+                alarm.volume_increment = row_dict.get('volume_increment', 5)  # Default volume step
+                alarm.ramp_duration = row_dict.get('ramp_duration', 60)  # Default ramp duration in seconds
+                
+                logger.info(f"Smart alarm settings: enabled={alarm.smart_alarm}, " +
+                           f"start={alarm.volume_start}, end={alarm.volume_end}, " +
+                           f"increment={alarm.volume_increment}, duration={alarm.ramp_duration}")
             else:
                 logger.error("Failed to convert row to dictionary")
         except Exception as e:
