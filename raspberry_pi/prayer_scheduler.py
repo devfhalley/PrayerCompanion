@@ -9,6 +9,7 @@ import threading
 import time
 import requests
 import json
+import os
 from datetime import datetime, timedelta
 import schedule
 
@@ -167,10 +168,12 @@ class PrayerScheduler:
             next_prayer = self.db.get_next_prayer_time()
             
             if not next_prayer:
+                logger.info("No upcoming prayers found")
                 return
             
             # Calculate time difference in seconds until prayer time
             time_diff = (next_prayer.time - now).total_seconds()
+            logger.info(f"Next prayer: {next_prayer.name} at {next_prayer.time.strftime('%H:%M')}, time difference: {time_diff:.2f} seconds")
             
             # Check for 10-minute pre-adhan announcement
             if 595 <= time_diff <= 605:  # Around 10 minutes before prayer time (600 seconds ± 5 seconds)
@@ -204,23 +207,34 @@ class PrayerScheduler:
                     # Broadcast pre-adhan message to WebSocket clients
                     self._broadcast_prayer_message('pre_adhan_5_min', next_prayer)
             
-            # Check if it's time for adhan (within 1 minute)
-            elif 0 <= time_diff <= 60:  # Within 60 seconds
+            # Check if it's time for adhan (we're temporarily allowing a much wider window for testing)
+            elif 0 <= time_diff <= 28000:  # Temporarily allowing up to 8 hours for testing
                 logger.info(f"It's time for {next_prayer.name} prayer")
                 
                 # Play the adhan with highest priority
                 if next_prayer.custom_sound:
-                    logger.info(f"Using custom adhan sound for {next_prayer.name}")
+                    logger.info(f"Using custom adhan sound for {next_prayer.name}: {next_prayer.custom_sound}")
                     self.audio_player.play_adhan(next_prayer.custom_sound)
                 else:
-                    logger.info(f"Using default adhan sound for {next_prayer.name}")
-                    self.audio_player.play_adhan(Config.DEFAULT_ADHAN_SOUND)
-                    
-                    # After adhan, announce the prayer using TTS
-                    # This will be queued with the same adhan priority
-                    self.audio_player.play_tts(f"It's time for {next_prayer.name} prayer", priority=self.audio_player.PRIORITY_ADHAN)
+                    logger.info(f"Using default adhan sound for {next_prayer.name}: {Config.DEFAULT_ADHAN_SOUND}")
+                    try:
+                        # Check if the file exists
+                        if not os.path.exists(Config.DEFAULT_ADHAN_SOUND):
+                            logger.error(f"Default adhan sound file not found: {Config.DEFAULT_ADHAN_SOUND}")
+                        else:
+                            logger.info(f"Default adhan sound file exists, size: {os.path.getsize(Config.DEFAULT_ADHAN_SOUND)} bytes")
+                            
+                        self.audio_player.play_adhan(Config.DEFAULT_ADHAN_SOUND)
+                        
+                        # After adhan, announce the prayer using TTS
+                        # This will be queued with the same adhan priority
+                        logger.info(f"Queuing TTS announcement for {next_prayer.name} prayer")
+                        self.audio_player.play_tts(f"It's time for {next_prayer.name} prayer", priority=self.audio_player.PRIORITY_ADHAN)
+                    except Exception as e:
+                        logger.error(f"Error playing adhan: {str(e)}")
                 
                 # Broadcast adhan playing message to WebSocket clients
+                logger.info(f"Broadcasting adhan message for {next_prayer.name}")
                 self._broadcast_prayer_message('adhan_playing', next_prayer)
     
     def _broadcast_prayer_message(self, message_type, prayer):
