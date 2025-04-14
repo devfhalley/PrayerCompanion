@@ -39,8 +39,18 @@ class AudioPlayer:
         if not os.path.exists(self.murattal_directory):
             os.makedirs(self.murattal_directory)
         
-        # Initialize pygame mixer
-        pygame.mixer.init()
+        # Initialize pygame mixer with specific parameters for Replit environment
+        try:
+            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+            logger.info(f"Pygame mixer initialized: {pygame.mixer.get_init()}")
+        except Exception as e:
+            logger.error(f"Failed to initialize pygame mixer: {str(e)}")
+            # Try alternative initialization
+            try:
+                pygame.mixer.init(frequency=22050, size=-16, channels=1, buffer=1024)
+                logger.info(f"Pygame mixer initialized with fallback settings: {pygame.mixer.get_init()}")
+            except Exception as e2:
+                logger.error(f"Failed to initialize pygame mixer with fallback settings: {str(e2)}")
         
         # Start player thread
         self.start_player_thread()
