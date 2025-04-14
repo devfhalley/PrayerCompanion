@@ -207,8 +207,18 @@ class PrayerScheduler:
                     # Broadcast pre-adhan message to WebSocket clients
                     self._broadcast_prayer_message('pre_adhan_5_min', next_prayer)
             
-            # Check if it's time for adhan (we're temporarily allowing a much wider window for testing)
-            elif 0 <= time_diff <= 28000:  # Temporarily allowing up to 8 hours for testing
+            # Check if it's time for adhan (within 30 seconds of the prayer time)
+            elif -15 <= time_diff <= 30:  # Play adhan right at prayer time or up to 30 seconds after
+                # Only play if we haven't already played for this prayer time
+                # Use a simple file-based flag to track when we've played the adhan
+                flag_dir = os.path.join(os.path.dirname(__file__), "flags")
+                os.makedirs(flag_dir, exist_ok=True)
+                flag_file = os.path.join(flag_dir, f"{next_prayer.name}_{next_prayer.time.strftime('%Y-%m-%d')}.played")
+                
+                if os.path.exists(flag_file):
+                    logger.info(f"Already played adhan for {next_prayer.name} at {next_prayer.time.strftime('%H:%M')}")
+                    return
+                
                 logger.info(f"It's time for {next_prayer.name} prayer")
                 
                 # Play the adhan with highest priority
@@ -232,6 +242,10 @@ class PrayerScheduler:
                         self.audio_player.play_tts(f"It's time for {next_prayer.name} prayer", priority=self.audio_player.PRIORITY_ADHAN)
                     except Exception as e:
                         logger.error(f"Error playing adhan: {str(e)}")
+                
+                # Create a flag file to indicate we've played this adhan
+                with open(flag_file, 'w') as f:
+                    f.write(f"Played at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 
                 # Broadcast adhan playing message to WebSocket clients
                 logger.info(f"Broadcasting adhan message for {next_prayer.name}")
