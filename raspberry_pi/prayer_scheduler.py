@@ -230,6 +230,13 @@ class PrayerScheduler:
                 
                 logger.info(f"It's time for {next_prayer.name} prayer")
                 
+                # Force stop any currently playing audio to prioritize adhan
+                logger.info("Forcefully stopping any currently playing audio to prioritize adhan")
+                self.audio_player.stop()
+                
+                # Add a small delay to ensure audio is fully stopped
+                time.sleep(0.5)
+                
                 # Play the adhan with highest priority
                 if next_prayer.custom_sound:
                     logger.info(f"Using custom adhan sound for {next_prayer.name}: {next_prayer.custom_sound}")
