@@ -40,6 +40,10 @@ audio_player = AudioPlayer()
 alarm_scheduler = AlarmScheduler(audio_player)
 prayer_scheduler = PrayerScheduler(audio_player)
 
+# Watchdog variables for scheduler health monitoring
+last_prayer_check_time = time.time()
+prayer_scheduler_healthy = True
+
 # Setup WebSocket server
 setup_websocket(app, audio_player)
 
@@ -1428,6 +1432,44 @@ def test_pre_adhan_sound():
         logger.error(f"Error testing pre-adhan sound: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+def prayer_scheduler_watchdog():
+    """Monitor the prayer scheduler and restart it if it becomes unresponsive."""
+    global last_prayer_check_time, prayer_scheduler_healthy
+    
+    # Check if the prayer scheduler is active
+    current_time = time.time()
+    time_since_last_check = current_time - last_prayer_check_time
+    
+    # If it's been more than 30 seconds since the last check, consider it unresponsive
+    if time_since_last_check > 30:
+        logger.warning(f"Prayer scheduler may be unresponsive. Last check was {time_since_last_check:.1f} seconds ago")
+        
+        # Stop the current scheduler if it's running
+        try:
+            prayer_scheduler.stop()
+            logger.info("Stopped unresponsive prayer scheduler")
+        except Exception as e:
+            logger.error(f"Error stopping prayer scheduler: {str(e)}")
+        
+        # Restart the prayer scheduler
+        try:
+            prayer_scheduler.start()
+            logger.info("Restarted prayer scheduler")
+            last_prayer_check_time = time.time()  # Reset the check time
+            prayer_scheduler_healthy = True
+        except Exception as e:
+            logger.error(f"Error restarting prayer scheduler: {str(e)}")
+            prayer_scheduler_healthy = False
+    
+    # Schedule the next check
+    threading.Timer(15.0, prayer_scheduler_watchdog).start()
+
+# Add a method to update the last check time
+def update_prayer_check_time():
+    """Update the last prayer check time to indicate the scheduler is healthy."""
+    global last_prayer_check_time
+    last_prayer_check_time = time.time()
+
 def start_schedulers():
     """Start the prayer and alarm schedulers."""
     logger.info("Starting schedulers...")
@@ -1440,6 +1482,9 @@ def start_schedulers():
     
     # Start alarm scheduler
     alarm_scheduler.start()
+    
+    # Start the prayer scheduler watchdog
+    threading.Timer(15.0, prayer_scheduler_watchdog).start()
     
     logger.info("Schedulers started successfully")
 

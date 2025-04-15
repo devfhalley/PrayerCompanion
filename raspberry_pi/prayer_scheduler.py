@@ -175,6 +175,15 @@ class PrayerScheduler:
             time_diff = (next_prayer.time - now).total_seconds()
             logger.info(f"Next prayer: {next_prayer.name} at {next_prayer.time.strftime('%H:%M')}, time difference: {time_diff:.2f} seconds")
             
+            # Update the watchdog's last check time (if the function exists)
+            try:
+                # Import here to avoid circular import issues
+                from app import update_prayer_check_time
+                update_prayer_check_time()
+            except (ImportError, AttributeError):
+                # Function may not exist during initial loading
+                pass
+            
             # Check for 10-minute pre-adhan announcement
             if 595 <= time_diff <= 605:  # Around 10 minutes before prayer time (600 seconds ± 5 seconds)
                 logger.info(f"10-minute pre-adhan check for {next_prayer.name}")
