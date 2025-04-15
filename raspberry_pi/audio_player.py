@@ -136,18 +136,45 @@ class AudioPlayer:
                 return
             
             logger.info(f"Playing audio file: {file_path}, loop: {loop}")
+            # Log file metadata
+            file_size = os.path.getsize(file_path)
+            logger.info(f"Audio file size: {file_size} bytes")
+            
+            # Log mixer status before loading file
+            logger.info(f"Mixer initialized status: {pygame.mixer.get_init()}")
             
             pygame.mixer.music.load(file_path)
+            logger.info(f"File loaded successfully, preparing playback")
+            
+            # Set volume to 1.0 (full volume)
+            pygame.mixer.music.set_volume(1.0)
+            logger.info(f"Volume set to: {pygame.mixer.music.get_volume()}")
+            
             pygame.mixer.music.play(loops=loop)
+            logger.info("Playback started")
+            
+            # Log if playback actually started
+            if pygame.mixer.music.get_busy():
+                logger.info("Confirmed playback is active")
+            else:
+                logger.warning("Playback not detected as active despite play() call")
             
             # Wait for playback to finish
+            play_start_time = time.time()
             while pygame.mixer.music.get_busy():
                 time.sleep(0.1)
+                # Log progress every 2 seconds
+                elapsed = time.time() - play_start_time
+                if int(elapsed) % 2 == 0 and elapsed > 0:
+                    logger.info(f"Still playing... {int(elapsed)} seconds elapsed")
             
-            logger.info("Audio file playback finished")
+            play_duration = time.time() - play_start_time
+            logger.info(f"Audio file playback finished after {play_duration:.2f} seconds")
             
         except Exception as e:
             logger.error(f"Error playing audio file: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
     
     def _play_tts_internal(self, text):
         """Internal method to play text-to-speech."""
