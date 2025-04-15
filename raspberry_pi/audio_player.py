@@ -70,15 +70,45 @@ class AudioPlayer:
                 
                 with self.lock:
                     # Check if we should override current playback
-                    if self.playing and priority < self.current_priority:
-                        # Higher priority audio (lower number) should interrupt
-                        logger.info(f"Interrupting priority {self.current_priority} playback for priority {priority}")
-                        pygame.mixer.music.stop()
-                    elif self.playing:
-                        # Skip this audio if current playback has higher priority
-                        logger.info(f"Skipping priority {priority} audio because priority {self.current_priority} is playing")
-                        self.audio_queue.task_done()
-                        continue
+                    if self.playing:
+                        if priority < self.current_priority:
+                            # Higher priority audio (lower number) should interrupt
+                            logger.info(f"Interrupting priority {self.current_priority} playback for priority {priority}")
+                            pygame.mixer.music.stop()
+                            # Add small delay to ensure audio is fully stopped
+                            time.sleep(0.5)
+                        else:
+                            # Skip this audio if current playback has higher priority
+                            logger.info(f"Skipping priority {priority} audio because priority {self.current_priority} is playing")
+                            self.audio_queue.task_done()
+                            continue
+                    
+                    # Update broadcast for global ticker about what's playing
+                    # Only broadcast for adhan, alarms, and Murattal - not for utility sounds
+                    if priority == self.PRIORITY_ADHAN:
+                        try:
+                            # Import here to avoid circular imports
+                            from websocket_server import broadcast_message
+                            broadcast_message({
+                                'type': 'audio_status',
+                                'status': 'playing',
+                                'priority': 'adhan',
+                                'timestamp': int(time.time() * 1000)
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error broadcasting adhan playing status: {str(e)}")
+                    elif priority == self.PRIORITY_ALARM:
+                        try:
+                            # Import here to avoid circular imports
+                            from websocket_server import broadcast_message
+                            broadcast_message({
+                                'type': 'audio_status',
+                                'status': 'playing',
+                                'priority': 'alarm',
+                                'timestamp': int(time.time() * 1000)
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error broadcasting alarm playing status: {str(e)}")
                     
                     self.playing = True
                     self.current_audio = audio_data

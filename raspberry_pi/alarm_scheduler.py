@@ -161,6 +161,18 @@ class AlarmScheduler:
         """
         logger.info(f"Triggering alarm {alarm.id}")
         
+        # Check if higher priority audio is playing (adhan, tahrim, or pre-adhan)
+        current_priority = self.audio_player.get_current_priority()
+        if current_priority is not None and current_priority < self.audio_player.PRIORITY_ALARM:
+            logger.info(f"Higher priority audio is playing (priority {current_priority}). Not stopping it for alarm.")
+        else:
+            # Stop any currently playing audio that is equal or lower priority
+            logger.info("Forcefully stopping any currently playing audio to prioritize alarm")
+            self.audio_player.stop()
+            
+            # Add a small delay to ensure audio is fully stopped
+            time.sleep(0.5)
+        
         # Broadcast alarm playing message for the ticker
         from websocket_server import broadcast_message
         alarm_label = alarm.label or f"Alarm {alarm.id}"
