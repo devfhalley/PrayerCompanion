@@ -548,9 +548,35 @@ class DatabaseWrapper:
             # Ensure we have 7 days
             if len(alarm.days) < 7:
                 alarm.days.extend([False] * (7 - len(alarm.days)))
+        elif isinstance(days_data, list):
+            # Handle Python list format directly
+            # Convert all values to bool in case they're strings like 'true'/'false'
+            try:
+                # First try to directly use as bool list
+                if all(isinstance(d, bool) for d in days_data):
+                    alarm.days = days_data
+                else:
+                    # Try to convert string-like values to booleans
+                    alarm.days = [
+                        (item is True or 
+                         (isinstance(item, str) and item.lower() == 'true') or 
+                         item == 't' or item == '1' or item == 1)
+                        for item in days_data
+                    ]
+                
+                # Ensure we have 7 days
+                if len(alarm.days) < 7:
+                    alarm.days.extend([False] * (7 - len(alarm.days)))
+                elif len(alarm.days) > 7:
+                    alarm.days = alarm.days[:7]  # Truncate if too long
+                
+                logger.info(f"Successfully processed days list format: {days_data} -> {alarm.days}")
+            except Exception as e:
+                logger.error(f"Error processing days list: {days_data}, error: {e}")
+                alarm.days = [False, False, False, False, False, False, False]
         else:
             # Unknown format, default to all days disabled
-            logger.warning(f"Unknown days format: {days_data}")
+            logger.warning(f"Unknown days format (type {type(days_data).__name__}): {days_data}")
             alarm.days = [False, False, False, False, False, False, False]
         
         alarm.is_tts = row['is_tts']
