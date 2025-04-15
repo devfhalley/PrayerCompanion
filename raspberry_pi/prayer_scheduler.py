@@ -70,12 +70,12 @@ class PrayerScheduler:
         # Schedule daily refresh at midnight
         schedule.every().day.at("00:01").do(self.fetch_prayer_times)
         
-        # Check for upcoming prayers
-        schedule.every(30).seconds.do(self._check_upcoming_prayers)
+        # Check for upcoming prayers every second to ensure we don't miss prayer times
+        schedule.every(1).seconds.do(self._check_upcoming_prayers)
         
         while self.running:
             schedule.run_pending()
-            time.sleep(1)
+            time.sleep(0.2)  # Sleep for shorter time to be more responsive
     
     def fetch_prayer_times(self, days=7):
         """Fetch prayer times for the next few days.
@@ -207,8 +207,8 @@ class PrayerScheduler:
                     # Broadcast pre-adhan message to WebSocket clients
                     self._broadcast_prayer_message('pre_adhan_5_min', next_prayer)
             
-            # Check if it's time for adhan (within 30 seconds of the prayer time)
-            elif -15 <= time_diff <= 30:  # Play adhan right at prayer time or up to 30 seconds after
+            # Check if it's time for adhan (within a few seconds of the prayer time)
+            elif -2 <= time_diff <= 3:  # Play adhan within 2 seconds before or 3 seconds after prayer time
                 # Only play if we haven't already played for this prayer time
                 # Use a simple file-based flag to track when we've played the adhan
                 flag_dir = os.path.join(os.path.dirname(__file__), "flags")

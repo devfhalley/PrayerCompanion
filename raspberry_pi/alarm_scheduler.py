@@ -61,12 +61,12 @@ class AlarmScheduler:
     
     def _run(self):
         """Main loop for the alarm scheduler."""
-        # Check for one-time alarms every minute
-        schedule.every().minute.at(":00").do(self._check_one_time_alarms)
+        # Check for one-time alarms every second
+        schedule.every(1).seconds.do(self._check_one_time_alarms)
         
         while self.running:
             schedule.run_pending()
-            time.sleep(1)
+            time.sleep(0.2)  # Sleep for shorter time to be more responsive
     
     def _load_alarms(self):
         """Load all alarms from database and schedule them."""
@@ -103,10 +103,10 @@ class AlarmScheduler:
         for alarm in one_time_alarms:
             alarm_time = datetime.fromtimestamp(alarm.time / 1000.0)
             
-            # Check if it's time to trigger the alarm (within 1 minute)
+            # Check if it's time to trigger the alarm (within 3 seconds)
             time_diff = (alarm_time - now).total_seconds()
             
-            if 0 <= time_diff <= 60:
+            if -2 <= time_diff <= 3:  # Trigger up to 2 seconds after or 3 seconds before alarm time
                 logger.info(f"Triggering one-time alarm {alarm.id}")
                 self._trigger_alarm(alarm)
                 
