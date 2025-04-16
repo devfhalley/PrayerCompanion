@@ -6,7 +6,7 @@
     <title>{% block title %}Prayer Alarm System{% endblock %}</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v={{ range(1000, 9999) | random }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=2025041601">
     {% block styles %}{% endblock %}
 </head>
 <body>
@@ -38,12 +38,12 @@
     
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-    <script src="{{ url_for('static', filename='js/common.js') }}?v={{ range(1000, 9999) | random }}"></script>
-    <script src="{{ url_for('static', filename='js/audio_status.js') }}?v={{ range(1000, 9999) | random }}"></script>
-    <script src="{{ url_for('static', filename='js/global_ticker.js') }}?v={{ range(1000, 9999) | random }}"></script>
-    <script src="{{ url_for('static', filename='js/volume_control.js') }}?v={{ range(1000, 9999) | random }}"></script>
-    <script src="{{ url_for('static', filename='js/prayer_countdown.js') }}?v={{ range(1000, 9999) | random }}"></script>
-    <script src="{{ url_for('static', filename='js/global_murattal_player.js') }}?v={{ range(1000, 9999) | random }}"></script>
+    <script src="{{ url_for('static', filename='js/common.js') }}?v=2025041601"></script>
+    <script src="{{ url_for('static', filename='js/audio_status.js') }}?v=2025041601"></script>
+    <script src="{{ url_for('static', filename='js/global_ticker.js') }}?v=2025041601"></script>
+    <script src="{{ url_for('static', filename='js/volume_control.js') }}?v=2025041601"></script>
+    <script src="{{ url_for('static', filename='js/prayer_countdown.js') }}?v=2025041601"></script>
+    <script src="{{ url_for('static', filename='js/global_murattal_player.js') }}?v=2025041601"></script>
     {% block scripts %}{% endblock %}
     
     {% if request.endpoint != 'web_prayer_times' and request.endpoint != 'web_home' %}
