@@ -149,7 +149,13 @@ def get_status():
     
     # Get murattal file details if applicable
     murattal_details = None
-    if is_playing and current_priority == audio_player.PRIORITY_MURATTAL and current_audio:
+    
+    # Check if we have a last played murattal even if nothing is currently playing
+    with audio_player.lock:
+        last_murattal = getattr(audio_player, 'last_murattal', None)
+    
+    # Check for currently playing murattal first
+    if current_audio:
         # Ensure current_audio is a tuple with at least 2 items
         if isinstance(current_audio, tuple) and len(current_audio) >= 2:
             audio_file_type, audio_file_path = current_audio
@@ -160,6 +166,17 @@ def get_status():
                     "name": murattal_name,
                     "file_path": audio_file_path
                 }
+                # If it's a murattal but not currently playing, set the type
+                if not is_playing and last_murattal:
+                    audio_type = "Murattal"
+    # Otherwise, check if we have last played murattal information
+    elif last_murattal:
+        murattal_details = {
+            "name": last_murattal['name'],
+            "file_path": last_murattal['file_path']
+        }
+        # Set the audio type to murattal even if not actively playing
+        audio_type = "Murattal"
     
     return jsonify({
         "status": "ok",

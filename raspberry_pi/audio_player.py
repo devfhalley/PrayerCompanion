@@ -33,6 +33,8 @@ class AudioPlayer:
         self.playing = False
         self.current_audio = None
         self.current_priority = None
+        # Track the last played murattal for persistence
+        self.last_murattal = None
         self.audio_queue = queue.PriorityQueue()
         self.lock = threading.Lock()
         self.player_thread = None
@@ -410,6 +412,16 @@ class AudioPlayer:
         Args:
             file_path: Path to the Murattal audio file
         """
+        # Store file path as the last murattal for persistence
+        with self.lock:
+            file_name = os.path.basename(file_path)
+            murattal_name = os.path.splitext(file_name)[0]  # Remove extension
+            self.last_murattal = {
+                'file_path': file_path,
+                'name': murattal_name
+            }
+            logger.info(f"Setting last_murattal to: {murattal_name}")
+            
         self.audio_queue.put((self.PRIORITY_MURATTAL, time.time(), ('file', file_path)))
     
     def play_file(self, file_path, priority=None):
@@ -471,6 +483,9 @@ class AudioPlayer:
         with self.lock:
             if self.playing:
                 logger.info("Stopping audio playback")
+                # If we're stopping a murattal, don't clear the last_murattal reference
+                current_priority = self.current_priority
+                
                 pygame.mixer.music.stop()
                 self.playing = False
                 self.current_audio = None
@@ -483,11 +498,32 @@ class AudioPlayer:
                         self.audio_queue.task_done()
                     except queue.Empty:
                         break
+                
+                # For murattal, we want to preserve the last played track
+                # even after stopping, so the UI can show what was last played
+                if current_priority == self.PRIORITY_MURATTAL:
+                    logger.info("Preserving last murattal information after stop")
+                    if self.last_murattal:
+                        logger.info(f"Last played murattal: {self.last_murattal['name']}")
     
     def is_playing(self):
-        """Check if audio is currently playing."""
+        """Check if audio is currently playing.
+        
+        For murattal persistence, this method will also check if we have information
+        about a last played murattal that should be displayed in the UI.
+        """
         with self.lock:
-            return self.playing
+            # For normal playback check
+            if self.playing:
+                return True
+            
+            # Special case for murattal persistence
+            if self.last_murattal is not None:
+                # This helps the status endpoint know there's murattal data available
+                # even if it's not currently playing
+                return False
+            
+            return False
     
     def get_current_priority(self):
         """Get the priority level of currently playing audio."""
@@ -498,11 +534,16 @@ class AudioPlayer:
         """Get the currently playing audio data.
         
         Returns:
-            Tuple with (audio_type, audio_data) or None if nothing is playing
+            Tuple with (audio_type, audio_data) or None if nothing is playing.
+            For murattal that isn't currently playing but was played recently,
+            returns ('file', file_path) to maintain persistence.
         """
         with self.lock:
             if self.playing and self.current_audio is not None:
-                return self.current_audio
+                return ('file', self.current_audio)
+            elif self.current_priority == self.PRIORITY_MURATTAL and self.last_murattal is not None:
+                # For murattal, provide the last played file for persistence
+                return ('file', self.last_murattal['file_path'])
             return None
     
     def _play_smart_alarm_file(self, file_path, settings):

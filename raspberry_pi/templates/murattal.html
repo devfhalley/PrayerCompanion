@@ -81,30 +81,38 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const data = await response.json();
             
-            // Check if murattal is playing
-            if (data.audio_playing && 
-                data.audio_status && 
+            // Check if there's a murattal track in the response
+            if (data.audio_status && 
                 data.audio_status.type === 'murattal' && 
                 data.audio_status.murattal_details) {
                 
                 const murattalDetails = data.audio_status.murattal_details;
-                console.log("Found murattal playing on page load:", murattalDetails);
+                console.log("Found murattal information on page load:", murattalDetails, "playing:", data.audio_playing);
                 
-                // Update UI to show currently playing murattal
-                nowPlayingTitle.textContent = `Now Playing: ${murattalDetails.name}`;
+                // Update UI to show murattal info (playing or last played)
+                const statusPrefix = data.audio_playing ? "Now Playing" : "Last Played";
+                nowPlayingTitle.textContent = `${statusPrefix}: ${murattalDetails.name}`;
                 
                 // Update player state
-                playerState.isPlaying = true;
+                playerState.isPlaying = data.audio_playing;
                 playerState.isPaused = false;
                 playerState.currentTrack = {
                     name: murattalDetails.name,
                     path: murattalDetails.file_path
                 };
                 
-                // Update button states
-                playButton.disabled = true;
-                pauseButton.disabled = false;
-                stopButton.disabled = false;
+                // Create the sticky player if a murattal is playing or was recently played
+                createStickyPlayer();
+                
+                // Update button states - if track is playing vs. paused
+                playButton.disabled = data.audio_playing;
+                pauseButton.disabled = !data.audio_playing;
+                stopButton.disabled = !data.audio_playing;
+                
+                // If track exists but is not playing, enable play button
+                if (!data.audio_playing) {
+                    playButton.disabled = false;
+                }
             }
         } catch (error) {
             console.error("Error checking initial murattal status:", error);
@@ -122,47 +130,81 @@ document.addEventListener('DOMContentLoaded', function() {
                 const response = await fetch('/status');
                 const data = await response.json();
                 
-                // Update UI based on status
-                if (data.audio_playing && 
-                    data.audio_status && 
+                // Check if there's any murattal info in the response
+                if (data.audio_status && 
                     data.audio_status.type === 'murattal' && 
                     data.audio_status.murattal_details) {
                     
                     const murattalDetails = data.audio_status.murattal_details;
+                    const isActuallyPlaying = data.audio_playing;
                     
-                    // Only update if something changed
-                    if (!playerState.isPlaying || 
-                        !playerState.currentTrack || 
-                        playerState.currentTrack.name !== murattalDetails.name) {
+                    // Check if this is a different track than what we're currently tracking
+                    const isNewTrack = !playerState.currentTrack || 
+                                       playerState.currentTrack.name !== murattalDetails.name;
+                    
+                    // Check if play state has changed
+                    const playStateChanged = playerState.isPlaying !== isActuallyPlaying;
+                    
+                    // Only update if there's a change to track or play state
+                    if (isNewTrack || playStateChanged) {
+                        console.log("Murattal status update:", {
+                            isActuallyPlaying, 
+                            trackName: murattalDetails.name,
+                            isNewTrack,
+                            playStateChanged
+                        });
                         
-                        // Update UI
-                        nowPlayingTitle.textContent = `Now Playing: ${murattalDetails.name}`;
+                        // Update UI with appropriate prefix
+                        const statusPrefix = isActuallyPlaying ? "Now Playing" : "Last Played";
+                        nowPlayingTitle.textContent = `${statusPrefix}: ${murattalDetails.name}`;
                         
                         // Update state
-                        playerState.isPlaying = true;
+                        playerState.isPlaying = isActuallyPlaying;
                         playerState.isPaused = false;
                         playerState.currentTrack = {
                             name: murattalDetails.name,
                             path: murattalDetails.file_path
                         };
                         
-                        // Update button states
-                        playButton.disabled = true;
-                        pauseButton.disabled = false;
-                        stopButton.disabled = false;
+                        // Make sure sticky player is created for both playing and past tracks
+                        createStickyPlayer();
+                        
+                        // Update button states based on whether track is actually playing
+                        playButton.disabled = isActuallyPlaying;
+                        pauseButton.disabled = !isActuallyPlaying;
+                        stopButton.disabled = !isActuallyPlaying;
+                        
+                        // If we have track info but it's not playing, enable the play button
+                        if (!isActuallyPlaying) {
+                            playButton.disabled = false;
+                        }
+                        
+                        // Update sticky player if it exists
+                        updateStickyPlayer();
                     }
                 } else if (playerState.isPlaying) {
-                    // Audio stopped
+                    // No murattal info at all, and we thought something was playing
+                    console.log("No murattal info in status, resetting player state");
+                    
+                    // Reset playback state
                     playerState.isPlaying = false;
                     playerState.isPaused = false;
                     
-                    // Reset UI
-                    nowPlayingTitle.textContent = 'Select a murattal to play';
+                    // Keep track info if we had it, just update UI to show it's not playing
+                    if (playerState.currentTrack) {
+                        nowPlayingTitle.textContent = `Last Played: ${playerState.currentTrack.name}`;
+                    } else {
+                        // No track info at all
+                        nowPlayingTitle.textContent = 'Select a murattal to play';
+                    }
                     
                     // Update button states
-                    playButton.disabled = false;
+                    playButton.disabled = !playerState.currentTrack;
                     pauseButton.disabled = true;
                     stopButton.disabled = true;
+                    
+                    // Update sticky player if it exists
+                    updateStickyPlayer();
                 }
             } catch (error) {
                 console.error("Error checking audio status:", error);
@@ -330,81 +372,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // This function is no longer used - it's replaced by the checkInitialStatus function above
+    // Placeholder for removed function
     function dummy() {}
-    
-    function startStatusCheck() {
-        if (playerState.statusCheckInterval) return;
-        
-        // Run initial check immediately
-        checkInitialStatus();
-        
-        playerState.statusCheckInterval = setInterval(async () => {
-            try {
-                const response = await fetch('/status');
-                const data = await response.json();
-                
-                const wasPlaying = playerState.isPlaying;
-                const wasPaused = playerState.isPaused;
-                
-                playerState.audioStatus = data.audio_status;
-                
-                // Update player state based on audio status
-                if (data.audio_status.is_playing && data.audio_status.type === 'murattal') {
-                    playerState.isPlaying = true;
-                    playerState.isPaused = false;
-                    
-                    // If murattal details are available and we don't have a current track,
-                    // or the current track is different, update it
-                    if (data.audio_status.murattal_details) {
-                        const details = data.audio_status.murattal_details;
-                        
-                        // If we don't have a current track or it's different, update
-                        if (!playerState.currentTrack || 
-                            playerState.currentTrack.path !== details.file_path) {
-                            
-                            // Find this track in our playlist
-                            let found = false;
-                            for (let i = 0; i < playerState.playlist.length; i++) {
-                                if (playerState.playlist[i].path === details.file_path) {
-                                    // Set this as the current track
-                                    selectTrack(i, details.file_path);
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            
-                            if (!found) {
-                                // If not found in the playlist
-                                // Create a temporary track object
-                                playerState.currentTrack = {
-                                    name: details.name,
-                                    path: details.file_path
-                                };
-                                playerState.currentIndex = -1;
-                                nowPlayingTitle.textContent = details.name;
-                            }
-                            
-                            // Create sticky player if it doesn't exist
-                            createStickyPlayer();
-                        }
-                    }
-                } else {
-                    playerState.isPlaying = false;
-                    playerState.isPaused = false;
-                }
-                
-                // If state changed, update controls
-                if (wasPlaying !== playerState.isPlaying || wasPaused !== playerState.isPaused) {
-                    updatePlayerControls();
-                    updateStickyPlayer();
-                }
-                
-            } catch (error) {
-                console.error('Error checking audio status:', error);
-            }
-        }, 1000);
-    }
     
     // Create a sticky player that stays at the bottom of the page
     function createStickyPlayer() {
