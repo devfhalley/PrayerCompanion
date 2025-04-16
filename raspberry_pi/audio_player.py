@@ -20,10 +20,13 @@ logger = logging.getLogger(__name__)
 class AudioPlayer:
     """Handles audio playback, including MP3 files and text-to-speech."""
     
-    # Priority levels for audio playback
-    PRIORITY_ADHAN = 1  # Highest priority
-    PRIORITY_ALARM = 2
-    PRIORITY_MURATTAL = 3  # Lowest priority
+    # Priority levels for audio playback (lower number = higher priority)
+    PRIORITY_ADHAN = 1     # Highest priority
+    PRIORITY_PRE_ADHAN = 2 # Second highest priority
+    PRIORITY_TAHRIM = 3    # Third highest priority
+    PRIORITY_ALARM = 4     # Fourth priority
+    PRIORITY_PUSH_TO_TALK = 5 # Fifth priority
+    PRIORITY_MURATTAL = 6  # Lowest priority
     
     def __init__(self):
         """Initialize the audio player."""
@@ -356,6 +359,30 @@ class AudioPlayer:
             else:
                 # Use regular TTS alarm
                 self.audio_queue.put((self.PRIORITY_ALARM, time.time(), ('tts', tts_text)))
+    
+    def play_pre_adhan(self, file_path):
+        """Play pre-adhan audio with second highest priority.
+        
+        Args:
+            file_path: Path to the pre-adhan audio file
+        """
+        self.audio_queue.put((self.PRIORITY_PRE_ADHAN, time.time(), ('file', file_path)))
+    
+    def play_tahrim(self, file_path):
+        """Play tahrim audio with third highest priority.
+        
+        Args:
+            file_path: Path to the tahrim audio file
+        """
+        self.audio_queue.put((self.PRIORITY_TAHRIM, time.time(), ('file', file_path)))
+    
+    def play_push_to_talk(self, audio_bytes):
+        """Play push-to-talk audio with second lowest priority.
+        
+        Args:
+            audio_bytes: Audio data as bytes
+        """
+        self.audio_queue.put((self.PRIORITY_PUSH_TO_TALK, time.time(), ('bytes', audio_bytes)))
     
     def play_murattal(self, file_path):
         """Play Murattal audio with lowest priority.
