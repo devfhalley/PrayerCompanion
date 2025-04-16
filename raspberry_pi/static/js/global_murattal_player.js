@@ -17,6 +17,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log("Initializing global murattal player");
     
+    // Add basic styles if CSS failed to load
+    ensureBasicStyles();
+    
     // Global player state
     const playerState = {
         currentTrack: null,
@@ -141,7 +144,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="sticky-player-title" id="sticky-player-title">
                         ${playerState.currentTrack ? playerState.currentTrack.name : 'No track selected'}
                     </div>
-                    <a href="/murattal" class="sticky-player-link">Open Full Player</a>
+                    <a href="${window.appRoutes?.murattalPage || '/web/murattal'}" class="sticky-player-link">Open Full Player</a>
                 </div>
                 <div class="sticky-player-controls">
                     <button id="sticky-play-button" class="player-btn primary-btn"><i class="fas fa-play"></i></button>
@@ -254,5 +257,97 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error stopping audio:', error);
         });
+    }
+    
+    // Function to ensure basic styles are available
+    function ensureBasicStyles() {
+        // Check if stylesheet already exists
+        const existingStyle = document.getElementById('fallback-murattal-styles');
+        if (existingStyle) return;
+        
+        // Create a style element with essential styles
+        const style = document.createElement('style');
+        style.id = 'fallback-murattal-styles';
+        style.textContent = `
+            .sticky-player {
+                position: fixed;
+                bottom: 50px;
+                left: 0;
+                right: 0;
+                background-color: rgba(255, 255, 255, 0.95);
+                box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+                padding: 10px 20px;
+                z-index: 1000;
+                border-top: 3px solid #2b8a3e;
+            }
+            
+            .sticky-player-inner {
+                max-width: 1000px;
+                margin: 0 auto;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            
+            .sticky-player-info {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+            
+            .sticky-player-title {
+                font-weight: bold;
+                font-size: 16px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 300px;
+            }
+            
+            .sticky-player-link {
+                font-size: 12px;
+                color: #2b8a3e;
+                text-decoration: none;
+                margin-top: 4px;
+            }
+            
+            .sticky-player-controls {
+                display: flex;
+                gap: 10px;
+            }
+            
+            .player-btn {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                border: none;
+                background-color: #e9e9e9;
+                color: #333;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .player-btn.primary-btn {
+                background-color: #2b8a3e;
+                color: white;
+                width: 45px;
+                height: 45px;
+            }
+            
+            .player-btn.hidden {
+                display: none;
+            }
+            
+            .player-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+        `;
+        
+        // Add to document head
+        document.head.appendChild(style);
+        console.log("Added fallback murattal player styles");
     }
 });
