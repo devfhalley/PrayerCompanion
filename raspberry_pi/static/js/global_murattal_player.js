@@ -69,13 +69,36 @@ document.addEventListener('DOMContentLoaded', function() {
         startStatusCheck();
     }
     
+    // Track consecutive failures for status checks
+    let statusFailCount = 0;
+    const MAX_CONSECUTIVE_FAILURES = 5;
+    
     // Start regular status checks
     function startStatusCheck() {
         // Check status every second
         playerState.statusCheckInterval = setInterval(async () => {
             try {
-                const response = await fetch('/status');
+                // Add cache busting to prevent ERR_TOO_MANY_RETRIES
+                const timestamp = Date.now();
+                const response = await fetch(`/status?t=${timestamp}`, {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    // Set a reasonable timeout
+                    signal: AbortSignal.timeout(3000)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                
+                // Reset failure count on success
+                statusFailCount = 0;
                 
                 // Check if there's any murattal info in the response
                 if (data.audio_status && 
@@ -126,6 +149,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } catch (error) {
                 console.error("Error checking audio status:", error);
+                
+                // Increment failure count
+                statusFailCount++;
+                
+                // If we've had too many consecutive failures, slow down the polling rate
+                if (statusFailCount >= MAX_CONSECUTIVE_FAILURES) {
+                    console.warn(`Too many consecutive murattal status check failures (${statusFailCount}), reducing polling rate`);
+                    
+                    // Clear current interval and set a slower one
+                    if (playerState.statusCheckInterval) {
+                        clearInterval(playerState.statusCheckInterval);
+                        playerState.statusCheckInterval = setInterval(async () => {
+                            // Same function but with less frequent calls
+                            try {
+                                const timestamp = Date.now();
+                                const response = await fetch(`/status?t=${timestamp}`, {
+                                    method: 'GET',
+                                    headers: {
+                                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                        'Pragma': 'no-cache',
+                                        'Expires': '0'
+                                    },
+                                    signal: AbortSignal.timeout(3000)
+                                });
+                                
+                                if (response.ok) {
+                                    // If we succeed after slowing down, reset to normal speed
+                                    console.log("Status check successful after slowing down, resuming normal polling rate");
+                                    clearInterval(playerState.statusCheckInterval);
+                                    statusFailCount = 0;
+                                    startStatusCheck(); // Restart with normal interval
+                                    return;
+                                }
+                            } catch (e) {
+                                console.error("Still having errors with slower polling rate:", e);
+                            }
+                        }, 5000); // Check every 5 seconds instead of 1
+                    }
+                }
             }
         }, 1000);
     }
@@ -206,20 +268,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Play current track
+    // Play current track with improved error handling
     function playCurrentTrack() {
         if (!playerState.currentTrack) return;
+        
+        // Show visual feedback that the request is being processed
+        const playButton = document.getElementById('sticky-play-button');
+        if (playButton) {
+            playButton.disabled = true;
+            playButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        }
         
         fetch('/murattal/play', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache, no-store, must-revalidate'
             },
             body: JSON.stringify({
                 file_path: playerState.currentTrack.path
-            })
+            }),
+            // Add request timeout
+            signal: AbortSignal.timeout(5000)
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.status === 'success') {
                 playerState.isPlaying = true;
@@ -227,11 +304,77 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateStickyPlayer();
             } else {
                 console.error('Error playing murattal:', data.message);
+                // Reset button in case of error
+                if (playButton) {
+                    playButton.disabled = false;
+                    playButton.innerHTML = '<i class="fas fa-play"></i>';
+                }
+                
+                // Show error toast
+                showErrorToast('Failed to play track');
             }
         })
         .catch(error => {
             console.error('Error playing murattal:', error);
+            // Reset button in case of error
+            if (playButton) {
+                playButton.disabled = false;
+                playButton.innerHTML = '<i class="fas fa-play"></i>';
+            }
+            
+            // Show error toast
+            showErrorToast('Request failed. Please try again.');
         });
+    }
+    
+    // Helper function to show error toast
+    function showErrorToast(message) {
+        // Create toast element if it doesn't exist
+        let toast = document.getElementById('error-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'error-toast';
+            toast.className = 'error-toast';
+            document.body.appendChild(toast);
+            
+            // Add toast styles if they don't exist
+            if (!document.getElementById('toast-styles')) {
+                const style = document.createElement('style');
+                style.id = 'toast-styles';
+                style.textContent = `
+                    .error-toast {
+                        position: fixed;
+                        bottom: 120px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background-color: var(--error-color, #e74c3c);
+                        color: white;
+                        padding: 12px 20px;
+                        border-radius: 4px;
+                        z-index: 2000;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                        font-size: 14px;
+                        opacity: 0;
+                        visibility: hidden;
+                        transition: opacity 0.3s, visibility 0.3s;
+                    }
+                    .error-toast.show {
+                        opacity: 1;
+                        visibility: visible;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+        
+        // Set toast message and show it
+        toast.textContent = message;
+        toast.classList.add('show');
+        
+        // Hide toast after 3 seconds
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
     }
     
     // Pause playback
@@ -240,22 +383,51 @@ document.addEventListener('DOMContentLoaded', function() {
         stopPlayback();
     }
     
-    // Stop playback
+    // Stop playback with improved error handling
     function stopPlayback() {
+        // Show visual feedback that the request is being processed
+        const stopButton = document.getElementById('sticky-stop-button');
+        if (stopButton) {
+            stopButton.disabled = true;
+            stopButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        }
+        
         fetch('/stop-audio', {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate'
+            },
+            // Add request timeout
+            signal: AbortSignal.timeout(5000)
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.status === 'success') {
                 playerState.isPlaying = false;
                 updateStickyPlayer();
             } else {
                 console.error('Error stopping audio:', data.message);
+                // Reset button in case of error
+                if (stopButton) {
+                    stopButton.disabled = false;
+                    stopButton.innerHTML = '<i class="fas fa-stop"></i>';
+                }
+                showErrorToast('Failed to stop playback');
             }
         })
         .catch(error => {
             console.error('Error stopping audio:', error);
+            // Reset button in case of error
+            if (stopButton) {
+                stopButton.disabled = false;
+                stopButton.innerHTML = '<i class="fas fa-stop"></i>';
+            }
+            showErrorToast('Request failed. Please try again.');
         });
     }
     
