@@ -112,6 +112,26 @@ class AudioPlayer:
                             })
                         except Exception as e:
                             logger.warning(f"Error broadcasting alarm playing status: {str(e)}")
+                    elif priority == self.PRIORITY_MURATTAL:
+                        try:
+                            # Import here to avoid circular imports
+                            from websocket_server import broadcast_message
+                            # For murattal, we need to extract the file name for display purposes
+                            murattal_name = "Unknown"
+                            if audio_type == 'file' and isinstance(audio_data, str):
+                                file_name = os.path.basename(audio_data)
+                                murattal_name = os.path.splitext(file_name)[0]  # Remove extension
+                            
+                            broadcast_message({
+                                'type': 'audio_status',
+                                'status': 'playing',
+                                'priority': 'murattal',
+                                'murattal_name': murattal_name,
+                                'file_path': audio_data if audio_type == 'file' else None,
+                                'timestamp': int(time.time() * 1000)
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error broadcasting murattal playing status: {str(e)}")
                     
                     self.playing = True
                     self.current_audio = audio_data
@@ -472,7 +492,18 @@ class AudioPlayer:
     def get_current_priority(self):
         """Get the priority level of currently playing audio."""
         with self.lock:
-            return self.current_priority if self.playing else None
+            return self.current_priority
+            
+    def get_current_audio(self):
+        """Get the currently playing audio data.
+        
+        Returns:
+            Tuple with (audio_type, audio_data) or None if nothing is playing
+        """
+        with self.lock:
+            if self.playing and self.current_audio is not None:
+                return self.current_audio
+            return None
     
     def _play_smart_alarm_file(self, file_path, settings):
         """Play an audio file with gradually increasing volume.

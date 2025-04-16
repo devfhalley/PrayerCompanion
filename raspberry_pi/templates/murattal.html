@@ -68,8 +68,107 @@ document.addEventListener('DOMContentLoaded', function() {
         statusCheckInterval: null
     };
     
-    // Start audio status check interval
-    startStatusCheck();
+    // Check initial status
+    checkInitialStatus();
+    
+    // Function to check if anything is playing when the page loads
+    async function checkInitialStatus() {
+        try {
+            const response = await fetch('/status');
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            
+            // Check if murattal is playing
+            if (data.audio_playing && 
+                data.audio_status && 
+                data.audio_status.type === 'murattal' && 
+                data.audio_status.murattal_details) {
+                
+                const murattalDetails = data.audio_status.murattal_details;
+                console.log("Found murattal playing on page load:", murattalDetails);
+                
+                // Update UI to show currently playing murattal
+                nowPlayingTitle.textContent = `Now Playing: ${murattalDetails.name}`;
+                
+                // Update player state
+                playerState.isPlaying = true;
+                playerState.isPaused = false;
+                playerState.currentTrack = {
+                    name: murattalDetails.name,
+                    path: murattalDetails.file_path
+                };
+                
+                // Update button states
+                playButton.disabled = true;
+                pauseButton.disabled = false;
+                stopButton.disabled = false;
+            }
+        } catch (error) {
+            console.error("Error checking initial murattal status:", error);
+        }
+        
+        // Start regular status checks
+        startStatusCheck();
+    }
+    
+    // Start regular status checks
+    function startStatusCheck() {
+        // Check status every second
+        playerState.statusCheckInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                
+                // Update UI based on status
+                if (data.audio_playing && 
+                    data.audio_status && 
+                    data.audio_status.type === 'murattal' && 
+                    data.audio_status.murattal_details) {
+                    
+                    const murattalDetails = data.audio_status.murattal_details;
+                    
+                    // Only update if something changed
+                    if (!playerState.isPlaying || 
+                        !playerState.currentTrack || 
+                        playerState.currentTrack.name !== murattalDetails.name) {
+                        
+                        // Update UI
+                        nowPlayingTitle.textContent = `Now Playing: ${murattalDetails.name}`;
+                        
+                        // Update state
+                        playerState.isPlaying = true;
+                        playerState.isPaused = false;
+                        playerState.currentTrack = {
+                            name: murattalDetails.name,
+                            path: murattalDetails.file_path
+                        };
+                        
+                        // Update button states
+                        playButton.disabled = true;
+                        pauseButton.disabled = false;
+                        stopButton.disabled = false;
+                    }
+                } else if (playerState.isPlaying) {
+                    // Audio stopped
+                    playerState.isPlaying = false;
+                    playerState.isPaused = false;
+                    
+                    // Reset UI
+                    nowPlayingTitle.textContent = 'Select a murattal to play';
+                    
+                    // Update button states
+                    playButton.disabled = false;
+                    pauseButton.disabled = true;
+                    stopButton.disabled = true;
+                }
+            } catch (error) {
+                console.error("Error checking audio status:", error);
+            }
+        }, 1000);
+    }
     
     // Fetch Murattal files
     async function fetchMurattalFiles() {
@@ -231,9 +330,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Start checking audio status periodically
+    // This function is no longer used - it's replaced by the checkInitialStatus function above
+    function dummy() {}
+    
     function startStatusCheck() {
         if (playerState.statusCheckInterval) return;
+        
+        // Run initial check immediately
+        checkInitialStatus();
         
         playerState.statusCheckInterval = setInterval(async () => {
             try {
@@ -249,6 +353,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.audio_status.is_playing && data.audio_status.type === 'murattal') {
                     playerState.isPlaying = true;
                     playerState.isPaused = false;
+                    
+                    // If murattal details are available and we don't have a current track,
+                    // or the current track is different, update it
+                    if (data.audio_status.murattal_details) {
+                        const details = data.audio_status.murattal_details;
+                        
+                        // If we don't have a current track or it's different, update
+                        if (!playerState.currentTrack || 
+                            playerState.currentTrack.path !== details.file_path) {
+                            
+                            // Find this track in our playlist
+                            let found = false;
+                            for (let i = 0; i < playerState.playlist.length; i++) {
+                                if (playerState.playlist[i].path === details.file_path) {
+                                    // Set this as the current track
+                                    selectTrack(i, details.file_path);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!found) {
+                                // If not found in the playlist
+                                // Create a temporary track object
+                                playerState.currentTrack = {
+                                    name: details.name,
+                                    path: details.file_path
+                                };
+                                playerState.currentIndex = -1;
+                                nowPlayingTitle.textContent = details.name;
+                            }
+                            
+                            // Create sticky player if it doesn't exist
+                            createStickyPlayer();
+                        }
+                    }
                 } else {
                     playerState.isPlaying = false;
                     playerState.isPaused = false;

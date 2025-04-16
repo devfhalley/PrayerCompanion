@@ -135,6 +135,7 @@ def get_status():
     """Check if the server is running and get audio status."""
     is_playing = audio_player.is_playing()
     current_priority = audio_player.get_current_priority()
+    current_audio = audio_player.get_current_audio()
     
     # Map priority to a human-readable name
     audio_type = "None"
@@ -146,12 +147,31 @@ def get_status():
         elif current_priority == audio_player.PRIORITY_MURATTAL:
             audio_type = "Murattal"
     
+    # Get murattal file details if applicable
+    murattal_details = None
+    if is_playing and current_priority == audio_player.PRIORITY_MURATTAL and current_audio:
+        # Ensure current_audio is a tuple with at least 2 items
+        if isinstance(current_audio, tuple) and len(current_audio) >= 2:
+            audio_file_type, audio_file_path = current_audio
+            if audio_file_type == 'file' and isinstance(audio_file_path, str):
+                file_name = os.path.basename(audio_file_path)
+                murattal_name = os.path.splitext(file_name)[0]  # Remove extension
+                murattal_details = {
+                    "name": murattal_name,
+                    "file_path": audio_file_path
+                }
+    
     return jsonify({
         "status": "ok",
         "service": "Prayer Alarm System",
         "version": "1.0.0",
         "audio_playing": is_playing,
-        "audio_type": audio_type
+        "audio_type": audio_type,
+        "audio_status": {
+            "is_playing": is_playing,
+            "type": audio_type.lower() if audio_type != "None" else "none",
+            "murattal_details": murattal_details
+        }
     })
 
 @app.route('/alarms', methods=['GET'])
