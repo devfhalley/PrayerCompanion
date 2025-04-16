@@ -71,11 +71,54 @@ class PrayerScheduler:
         schedule.every().day.at("00:01").do(self.fetch_prayer_times)
         
         # Check for upcoming prayers every second to ensure we don't miss prayer times
-        schedule.every(1).seconds.do(self._check_upcoming_prayers)
+        schedule.every(1).seconds.do(self._check_upcoming_prayers_safe)
+        
+        last_heartbeat = time.time()
         
         while self.running:
-            schedule.run_pending()
-            time.sleep(0.2)  # Sleep for shorter time to be more responsive
+            try:
+                # Heartbeat logging every 60 seconds to verify scheduler is alive
+                current_time = time.time()
+                if current_time - last_heartbeat >= 60:
+                    logger.info("Prayer scheduler heartbeat - still running")
+                    last_heartbeat = current_time
+                
+                schedule.run_pending()
+                time.sleep(0.1)  # Reduce sleep time for more responsive checks
+            except Exception as e:
+                logger.error(f"Error in prayer scheduler main loop: {str(e)}")
+                time.sleep(1)  # Sleep a bit longer if there's an error
+                
+    def _check_upcoming_prayers_safe(self):
+        """Wrapper to safely call the prayer check with error handling."""
+        try:
+            # Set a flag file to show we're about to run the check
+            flag_dir = os.path.join(os.path.dirname(__file__), "flags")
+            os.makedirs(flag_dir, exist_ok=True)
+            
+            with open(os.path.join(flag_dir, "prayer_check_starting.flag"), 'w') as f:
+                f.write(str(time.time()))
+                
+            # Actually run the check
+            self._check_upcoming_prayers()
+            
+            # Write completion flag
+            with open(os.path.join(flag_dir, "prayer_check_completed.flag"), 'w') as f:
+                f.write(str(time.time()))
+                
+            # Update the watchdog's last check time (if the function exists)
+            try:
+                # Import here to avoid circular import issues
+                from app import update_prayer_check_time
+                update_prayer_check_time()
+            except (ImportError, AttributeError):
+                # Function may not exist during initial loading
+                pass
+                
+        except Exception as e:
+            logger.error(f"Error checking upcoming prayers: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
     
     def fetch_prayer_times(self, days=7):
         """Fetch prayer times for the next few days.
@@ -172,8 +215,22 @@ class PrayerScheduler:
                 return
             
             # Calculate time difference in seconds until prayer time
-            time_diff = (next_prayer.time - now).total_seconds()
-            logger.info(f"Next prayer: {next_prayer.name} at {next_prayer.time.strftime('%H:%M')}, time difference: {time_diff:.2f} seconds")
+            try:
+                if next_prayer.time is None:
+                    logger.error(f"Prayer time is None for {next_prayer.name}. Skipping this check.")
+                    return
+                
+                time_diff = (next_prayer.time - now).total_seconds()
+                logger.info(f"Next prayer: {next_prayer.name} at {next_prayer.time.strftime('%H:%M')}, time difference: {time_diff:.2f} seconds")
+            except Exception as e:
+                logger.error(f"Error calculating time difference for {next_prayer.name}: {str(e)}")
+                # Reset the system time check to avoid watchdog restarting us
+                try:
+                    from app import update_prayer_check_time
+                    update_prayer_check_time()
+                except (ImportError, AttributeError):
+                    pass
+                return
             
             # Update the watchdog's last check time (if the function exists)
             try:
@@ -240,56 +297,93 @@ class PrayerScheduler:
                     # Broadcast pre-adhan message to WebSocket clients
                     self._broadcast_prayer_message('pre_adhan_5_min', next_prayer)
             
-            # Check if it's time for adhan (within a few seconds of the prayer time)
-            elif -2 <= time_diff <= 3:  # Play adhan within 2 seconds before or 3 seconds after prayer time
+            # Check if it's time for adhan (within a wider window to ensure we don't miss it)
+            # Make the window wider to reduce chances of missing the adhan
+            elif -30 <= time_diff <= 30:  # Play adhan within 30 seconds before or after prayer time
                 # Only play if we haven't already played for this prayer time
                 # Use a simple file-based flag to track when we've played the adhan
                 flag_dir = os.path.join(os.path.dirname(__file__), "flags")
                 os.makedirs(flag_dir, exist_ok=True)
-                flag_file = os.path.join(flag_dir, f"{next_prayer.name}_{next_prayer.time.strftime('%Y-%m-%d')}.played")
                 
-                if os.path.exists(flag_file):
-                    logger.info(f"Already played adhan for {next_prayer.name} at {next_prayer.time.strftime('%H:%M')}")
-                    return
+                # Create a unique flag identifier for this prayer time
+                prayer_date_str = next_prayer.time.strftime('%Y-%m-%d')
+                flag_file = os.path.join(flag_dir, f"{next_prayer.name}_{prayer_date_str}.played")
                 
-                logger.info(f"It's time for {next_prayer.name} prayer")
+                # Precise window for actually triggering adhan (stricter than the overall check)
+                precise_window = -3 <= time_diff <= 3  # Play exactly at prayer time ±3 seconds
                 
-                # Force stop any currently playing audio to prioritize adhan
-                logger.info("Forcefully stopping any currently playing audio to prioritize adhan")
-                self.audio_player.stop()
-                
-                # Add a small delay to ensure audio is fully stopped
-                time.sleep(0.5)
-                
-                # Play the adhan with highest priority
-                if next_prayer.custom_sound:
-                    logger.info(f"Using custom adhan sound for {next_prayer.name}: {next_prayer.custom_sound}")
-                    self.audio_player.play_adhan(next_prayer.custom_sound)
-                else:
-                    logger.info(f"Using default adhan sound for {next_prayer.name}: {Config.DEFAULT_ADHAN_SOUND}")
+                # If we're in the exact window or we're past the time and haven't played yet
+                if precise_window or (time_diff < 0 and not os.path.exists(flag_file)):
+                    # Double-check if we've already played it
+                    if os.path.exists(flag_file):
+                        # Read the flag file to see when it was played
+                        try:
+                            with open(flag_file, 'r') as f:
+                                played_time = f.read().strip()
+                            logger.info(f"Already played adhan for {next_prayer.name} at {next_prayer.time.strftime('%H:%M')} - {played_time}")
+                            return
+                        except Exception as e:
+                            logger.error(f"Error reading adhan flag file: {str(e)}")
+                            # Continue with playing adhan since we couldn't verify it was played
+                    
+                    logger.info(f"It's time for {next_prayer.name} prayer (time_diff: {time_diff:.2f} seconds)")
+                    
+                    # Force stop any currently playing audio to prioritize adhan
+                    logger.info("Forcefully stopping any currently playing audio to prioritize adhan")
+                    self.audio_player.stop()
+                    
+                    # Add a small delay to ensure audio is fully stopped
+                    time.sleep(0.5)
+                    
+                    # Create the flag file BEFORE playing to prevent race conditions
+                    with open(flag_file, 'w') as f:
+                        f.write(f"Played at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                    
+                    # Play the adhan with highest priority
                     try:
-                        # Check if the file exists
-                        if not os.path.exists(Config.DEFAULT_ADHAN_SOUND):
-                            logger.error(f"Default adhan sound file not found: {Config.DEFAULT_ADHAN_SOUND}")
-                        else:
-                            logger.info(f"Default adhan sound file exists, size: {os.path.getsize(Config.DEFAULT_ADHAN_SOUND)} bytes")
+                        if hasattr(next_prayer, 'custom_sound') and next_prayer.custom_sound:
+                            logger.info(f"Using custom adhan sound for {next_prayer.name}: {next_prayer.custom_sound}")
                             
-                        self.audio_player.play_adhan(Config.DEFAULT_ADHAN_SOUND)
+                            if os.path.exists(next_prayer.custom_sound):
+                                self.audio_player.play_adhan(next_prayer.custom_sound)
+                                adhan_played = True
+                            else:
+                                logger.error(f"Custom adhan sound file not found: {next_prayer.custom_sound}")
+                                adhan_played = False
+                        else:
+                            logger.info(f"Using default adhan sound for {next_prayer.name}: {Config.DEFAULT_ADHAN_SOUND}")
+                            
+                            # Check if the file exists
+                            if not os.path.exists(Config.DEFAULT_ADHAN_SOUND):
+                                logger.error(f"Default adhan sound file not found: {Config.DEFAULT_ADHAN_SOUND}")
+                                adhan_played = False
+                            else:
+                                logger.info(f"Default adhan sound file exists, size: {os.path.getsize(Config.DEFAULT_ADHAN_SOUND)} bytes")
+                                self.audio_player.play_adhan(Config.DEFAULT_ADHAN_SOUND)
+                                adhan_played = True
                         
                         # After adhan, announce the prayer using TTS
                         # This will be queued with the same adhan priority
                         logger.info(f"Queuing TTS announcement for {next_prayer.name} prayer")
                         self.audio_player.play_tts(f"It's time for {next_prayer.name} prayer", priority=self.audio_player.PRIORITY_ADHAN)
+                    
                     except Exception as e:
                         logger.error(f"Error playing adhan: {str(e)}")
-                
-                # Create a flag file to indicate we've played this adhan
-                with open(flag_file, 'w') as f:
-                    f.write(f"Played at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                
-                # Broadcast adhan playing message to WebSocket clients
-                logger.info(f"Broadcasting adhan message for {next_prayer.name}")
-                self._broadcast_prayer_message('adhan_playing', next_prayer)
+                        import traceback
+                        logger.error(traceback.format_exc())
+                        adhan_played = False
+                    
+                    # Update the flag file with success/failure status
+                    try:
+                        with open(flag_file, 'w') as f:
+                            status = "Success" if adhan_played else "Failed"
+                            f.write(f"Played at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Status: {status}")
+                    except Exception as e:
+                        logger.error(f"Error updating adhan flag file: {str(e)}")
+                    
+                    # Broadcast adhan playing message to WebSocket clients
+                    logger.info(f"Broadcasting adhan message for {next_prayer.name}")
+                    self._broadcast_prayer_message('adhan_playing', next_prayer)
     
     def _broadcast_prayer_message(self, message_type, prayer):
         """Broadcast prayer-related messages to WebSocket clients.

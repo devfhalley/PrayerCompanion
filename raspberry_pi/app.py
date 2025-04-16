@@ -1436,33 +1436,136 @@ def prayer_scheduler_watchdog():
     """Monitor the prayer scheduler and restart it if it becomes unresponsive."""
     global last_prayer_check_time, prayer_scheduler_healthy
     
-    # Check if the prayer scheduler is active
-    current_time = time.time()
-    time_since_last_check = current_time - last_prayer_check_time
-    
-    # If it's been more than 30 seconds since the last check, consider it unresponsive
-    if time_since_last_check > 30:
-        logger.warning(f"Prayer scheduler may be unresponsive. Last check was {time_since_last_check:.1f} seconds ago")
+    try:
+        # Check for flag files first
+        flag_dir = os.path.join(os.path.dirname(__file__), "flags")
+        os.makedirs(flag_dir, exist_ok=True)
         
-        # Stop the current scheduler if it's running
+        starting_flag = os.path.join(flag_dir, "prayer_check_starting.flag")
+        completed_flag = os.path.join(flag_dir, "prayer_check_completed.flag")
+        
+        # Check if flags exist and their timestamps
+        starting_time = None
+        completed_time = None
+        
+        if os.path.exists(starting_flag):
+            try:
+                with open(starting_flag, 'r') as f:
+                    starting_time = float(f.read().strip())
+            except Exception as e:
+                logger.error(f"Error reading starting flag: {str(e)}")
+        
+        if os.path.exists(completed_flag):
+            try:
+                with open(completed_flag, 'r') as f:
+                    completed_time = float(f.read().strip())
+            except Exception as e:
+                logger.error(f"Error reading completed flag: {str(e)}")
+        
+        # If we have both timestamps, check if the process is stuck
+        current_time = time.time()
+        
+        if starting_time and completed_time:
+            # If completed time is after starting time, the process completed normally
+            if completed_time > starting_time:
+                logger.debug("Prayer check process completed normally")
+            else:
+                # Something's wrong with the timestamps
+                logger.warning(f"Strange timestamp values: starting={starting_time}, completed={completed_time}")
+        
+        elif starting_time and not completed_time:
+            # Process started but never completed - it might be stuck
+            stuck_duration = current_time - starting_time
+            if stuck_duration > 20:  # If stuck for more than 20 seconds
+                logger.critical(f"Prayer check process appears stuck for {stuck_duration:.1f} seconds")
+                # Force restart the prayer scheduler
+                force_restart_scheduler()
+        
+        # Check last update time from the main system
+        time_since_last_check = current_time - last_prayer_check_time
+        
+        # If it's been more than 30 seconds since the last check, consider it unresponsive
+        if time_since_last_check > 30:
+            logger.warning(f"Prayer scheduler may be unresponsive. Last check was {time_since_last_check:.1f} seconds ago")
+            
+            # Force restart the scheduler
+            force_restart_scheduler()
+    
+    except Exception as e:
+        logger.error(f"Error in prayer scheduler watchdog: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+    
+    # Schedule the next check
+    threading.Timer(10.0, prayer_scheduler_watchdog).start()  # Check more frequently
+
+def force_restart_scheduler():
+    """Force restart the prayer scheduler."""
+    global last_prayer_check_time, prayer_scheduler_healthy
+    
+    # Stop and restart the prayer scheduler
+    try:
+        # Kill any potentially frozen threads by creating a fresh scheduler
+        global prayer_scheduler
+        
+        # First stop the existing one if possible
         try:
             prayer_scheduler.stop()
             logger.info("Stopped unresponsive prayer scheduler")
         except Exception as e:
             logger.error(f"Error stopping prayer scheduler: {str(e)}")
         
-        # Restart the prayer scheduler
+        # Create and start a new prayer scheduler
+        # Import modules locally to avoid circular imports
+        import sys
+        import importlib
+        
+        # Reload the audio_player module to get a fresh instance
+        if 'audio_player' in sys.modules:
+            importlib.reload(sys.modules['audio_player'])
+        
+        # Import the audio_player instance
         try:
-            prayer_scheduler.start()
-            logger.info("Restarted prayer scheduler")
-            last_prayer_check_time = time.time()  # Reset the check time
-            prayer_scheduler_healthy = True
+            from audio_player import AudioPlayer
+            # Create a new audio player instance
+            new_audio_player = AudioPlayer()
+            # Create a new prayer scheduler with the new audio player
+            prayer_scheduler = PrayerScheduler(new_audio_player)
         except Exception as e:
-            logger.error(f"Error restarting prayer scheduler: {str(e)}")
-            prayer_scheduler_healthy = False
-    
-    # Schedule the next check
-    threading.Timer(15.0, prayer_scheduler_watchdog).start()
+            logger.error(f"Error creating new audio player: {str(e)}")
+            # Fall back to the global audio_player if available
+            try:
+                from audio_player import audio_player
+                prayer_scheduler = PrayerScheduler(audio_player)
+            except Exception as e2:
+                logger.error(f"Error using fallback audio player: {str(e2)}")
+                # Last resort - recreate the prayer scheduler with the existing audio player
+                from prayer_scheduler import prayer_scheduler as existing_scheduler
+                prayer_scheduler = existing_scheduler
+        
+        # Delete any lock files that might be causing issues
+        flag_dir = os.path.join(os.path.dirname(__file__), "flags")
+        for flag_file in os.listdir(flag_dir):
+            if flag_file.endswith('.flag'):
+                try:
+                    os.remove(os.path.join(flag_dir, flag_file))
+                    logger.info(f"Removed potential lock file: {flag_file}")
+                except Exception as e:
+                    logger.error(f"Error removing lock file {flag_file}: {str(e)}")
+        
+        # Start the scheduler
+        prayer_scheduler.start()
+        logger.info("Created and started a new prayer scheduler instance")
+        
+        # Reset the check time
+        last_prayer_check_time = time.time()
+        prayer_scheduler_healthy = True
+        
+    except Exception as e:
+        logger.error(f"Error force-restarting prayer scheduler: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        prayer_scheduler_healthy = False
 
 # Add a method to update the last check time
 def update_prayer_check_time():
