@@ -9,16 +9,102 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     {% block styles %}{% endblock %}
     
-    <!-- Essential Sticky Player Styles -->
+    <!-- Essential Styles with Theme Support -->
     <style>
+        /* Light Theme (Default) */
         :root {
             --primary-color: #2b8a3e;
             --accent-color: #fd7e14;
             --error-color: #e74c3c;
             --text-color: #333;
+            --light-text: #666;
+            --bg-color: #ffffff;
             --light-bg: #f5f5f5;
             --divider-color: #ddd;
             --card-bg: #ffffff;
+            --header-bg: #f8f8f8;
+            --footer-bg: #333333;
+            --footer-text: #ffffff;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            
+            /* Theme transition */
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        /* Dark Theme */
+        [data-theme="dark"] {
+            --primary-color: #4caf50;
+            --accent-color: #ff9800;
+            --error-color: #f44336;
+            --text-color: #f0f0f0;
+            --light-text: #bbbbbb;
+            --bg-color: #121212;
+            --light-bg: #1e1e1e;
+            --divider-color: #333333;
+            --card-bg: #1e1e1e;
+            --header-bg: #1a1a1a;
+            --footer-bg: #0f0f0f;
+            --footer-text: #f0f0f0;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Apply theme to body and other elements */
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        header {
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--divider-color);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        
+        footer {
+            background-color: var(--footer-bg);
+            color: var(--footer-text);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        a {
+            color: var(--primary-color);
+            transition: color 0.3s ease;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            box-shadow: 0 2px 8px var(--shadow-color);
+            border: 1px solid var(--divider-color);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+        }
+        
+        /* Theme Toggle Button Styles */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            box-shadow: 0 2px 5px var(--shadow-color);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1100;
+            transition: background-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
+        }
+        
+        .theme-toggle:hover {
+            transform: scale(1.1);
+        }
+        
+        .theme-toggle:active {
+            transform: scale(0.95);
         }
         
         .sticky-player {
@@ -26,11 +112,12 @@
             bottom: 50px;
             left: 0;
             right: 0;
-            background-color: rgba(255, 255, 255, 0.95);
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            background-color: var(--card-bg);
+            box-shadow: 0 -2px 10px var(--shadow-color);
             padding: 10px 20px;
             z-index: 1000;
-            border-top: 3px solid #2b8a3e;
+            border-top: 3px solid var(--primary-color);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
         
         .sticky-player-inner {
@@ -58,9 +145,10 @@
         
         .sticky-player-link {
             font-size: 12px;
-            color: #2b8a3e;
+            color: var(--primary-color);
             text-decoration: none;
             margin-top: 4px;
+            transition: color 0.3s ease;
         }
         
         .sticky-player-link:hover {
@@ -77,8 +165,8 @@
             height: 40px;
             border-radius: 50%;
             border: none;
-            background-color: #e9e9e9;
-            color: #333;
+            background-color: var(--light-bg);
+            color: var(--text-color);
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -87,7 +175,7 @@
         }
         
         .player-btn.primary-btn {
-            background-color: #2b8a3e;
+            background-color: var(--primary-color);
             color: white;
             width: 45px;
             height: 45px;
@@ -95,7 +183,7 @@
         
         .player-btn:hover {
             transform: scale(1.05);
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 5px var(--shadow-color);
         }
         
         .player-btn:disabled {
@@ -110,6 +198,12 @@
     </style>
 </head>
 <body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark/light mode">
+        <i class="fas fa-moon" id="theme-toggle-dark-icon"></i>
+        <i class="fas fa-sun" id="theme-toggle-light-icon" style="display: none;"></i>
+    </button>
+    
     <header>
         <div class="container">
             <div class="logo">Prayer Alarm System</div>
@@ -153,6 +247,7 @@
     <script src="{{ url_for('static', filename='js/volume_control.js') }}?v=2025041601"></script>
     <script src="{{ url_for('static', filename='js/prayer_countdown.js') }}?v=2025041601"></script>
     <script src="{{ url_for('static', filename='js/global_murattal_player.js') }}?v=2025041601"></script>
+    <script src="{{ url_for('static', filename='js/theme_switcher.js') }}?v=2025041601"></script>
     {% block scripts %}{% endblock %}
     
     {% if request.endpoint != 'web_prayer_times' and request.endpoint != 'web_home' %}

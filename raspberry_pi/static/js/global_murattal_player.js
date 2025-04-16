@@ -269,16 +269,42 @@ document.addEventListener('DOMContentLoaded', function() {
         const style = document.createElement('style');
         style.id = 'fallback-murattal-styles';
         style.textContent = `
+            /* Light Theme Fallback */
+            :root {
+                --primary-color: #2b8a3e;
+                --accent-color: #fd7e14;
+                --text-color: #333;
+                --bg-color: #ffffff;
+                --light-bg: #f5f5f5;
+                --divider-color: #ddd;
+                --card-bg: #ffffff;
+                --shadow-color: rgba(0, 0, 0, 0.1);
+            }
+            
+            /* Dark Theme Fallback */
+            [data-theme="dark"] {
+                --primary-color: #4caf50;
+                --accent-color: #ff9800;
+                --text-color: #f0f0f0;
+                --bg-color: #121212;
+                --light-bg: #1e1e1e;
+                --divider-color: #333333;
+                --card-bg: #1e1e1e;
+                --shadow-color: rgba(0, 0, 0, 0.3);
+            }
+            
+            /* Sticky Player Styles */
             .sticky-player {
                 position: fixed;
                 bottom: 50px;
                 left: 0;
                 right: 0;
-                background-color: rgba(255, 255, 255, 0.95);
-                box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+                background-color: var(--card-bg, #ffffff);
+                box-shadow: 0 -2px 10px var(--shadow-color, rgba(0, 0, 0, 0.1));
                 padding: 10px 20px;
                 z-index: 1000;
-                border-top: 3px solid #2b8a3e;
+                border-top: 3px solid var(--primary-color, #2b8a3e);
+                transition: background-color 0.3s ease, box-shadow 0.3s ease;
             }
             
             .sticky-player-inner {
@@ -302,13 +328,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 max-width: 300px;
+                color: var(--text-color, #333);
             }
             
             .sticky-player-link {
                 font-size: 12px;
-                color: #2b8a3e;
+                color: var(--primary-color, #2b8a3e);
                 text-decoration: none;
                 margin-top: 4px;
+                transition: color 0.3s ease;
+            }
+            
+            .sticky-player-link:hover {
+                text-decoration: underline;
             }
             
             .sticky-player-controls {
@@ -321,19 +353,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 height: 40px;
                 border-radius: 50%;
                 border: none;
-                background-color: #e9e9e9;
-                color: #333;
+                background-color: var(--light-bg, #e9e9e9);
+                color: var(--text-color, #333);
                 cursor: pointer;
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                transition: all 0.3s ease;
             }
             
             .player-btn.primary-btn {
-                background-color: #2b8a3e;
+                background-color: var(--primary-color, #2b8a3e);
                 color: white;
                 width: 45px;
                 height: 45px;
+            }
+            
+            .player-btn:hover {
+                transform: scale(1.05);
+                box-shadow: 0 2px 5px var(--shadow-color, rgba(0, 0, 0, 0.1));
             }
             
             .player-btn.hidden {
@@ -343,11 +381,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .player-btn:disabled {
                 opacity: 0.5;
                 cursor: not-allowed;
+                transform: none;
             }
         `;
         
         // Add to document head
         document.head.appendChild(style);
-        console.log("Added fallback murattal player styles");
+        console.log("Added fallback murattal player styles with theme support");
     }
 });
