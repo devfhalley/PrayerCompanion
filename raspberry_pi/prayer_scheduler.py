@@ -242,60 +242,106 @@ class PrayerScheduler:
                 pass
             
             # Check for 10-minute pre-adhan announcement
-            if 595 <= time_diff <= 605:  # Around 10 minutes before prayer time (600 seconds ± 5 seconds)
-                logger.info(f"10-minute pre-adhan check for {next_prayer.name}")
+            if 590 <= time_diff <= 610:  # Around 10 minutes before prayer time (600 seconds ± 10 seconds)
+                # Set up flag file directory
+                flag_dir = os.path.join(os.path.dirname(__file__), "flags")
+                os.makedirs(flag_dir, exist_ok=True)
                 
-                # Handle tahrim sound first (highest priority after adhan)
-                if hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound:
-                    logger.info(f"Forcefully stopping any currently playing audio to prioritize tahrim sound")
-                    self.audio_player.stop()
-                    time.sleep(0.5)  # Small delay to ensure audio is fully stopped
+                # Create unique flag files for pre-adhan 10 min
+                prayer_date_str = next_prayer.time.strftime('%Y-%m-%d')
+                pre_adhan_10_flag = os.path.join(flag_dir, f"{next_prayer.name}_{prayer_date_str}_pre_adhan_10.played")
+                
+                # Check if we've already played this pre-adhan announcement
+                if os.path.exists(pre_adhan_10_flag):
+                    # Already played, skip
+                    logger.debug(f"Already played 10-minute pre-adhan for {next_prayer.name} at {next_prayer.time.strftime('%H:%M')}")
+                    # We still want to check for precise time window to avoid rapid logs
+                    if 598 <= time_diff <= 602:
+                        logger.info(f"10-minute pre-adhan window active for {next_prayer.name} (already played)")
+                else:
+                    # Play it now if we're in the precise window
+                    logger.info(f"10-minute pre-adhan check for {next_prayer.name}")
                     
-                    logger.info(f"Playing tahrim sound for {next_prayer.name} prayer (10-minute)")
-                    self.audio_player.play_file(next_prayer.tahrim_sound, priority=self.audio_player.PRIORITY_ADHAN)
-                    time.sleep(1)  # Small delay before playing pre-adhan
-                
-                # Then handle pre-adhan announcement
-                if hasattr(next_prayer, 'pre_adhan_10_min') and next_prayer.pre_adhan_10_min:
-                    # Only stop audio if tahrim didn't already stop it
-                    if not (hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound):
-                        logger.info(f"Forcefully stopping any currently playing audio to prioritize pre-adhan announcement")
-                        self.audio_player.stop()
-                        time.sleep(0.5)  # Small delay to ensure audio is fully stopped
+                    # Narrow window for actual playback
+                    if 598 <= time_diff <= 602:  # Exactly at 10 minutes ± 2 seconds
+                        # Handle tahrim sound first (highest priority after adhan)
+                        if hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound:
+                            logger.info(f"Forcefully stopping any currently playing audio to prioritize tahrim sound")
+                            self.audio_player.stop()
+                            time.sleep(0.5)  # Small delay to ensure audio is fully stopped
+                            
+                            logger.info(f"Playing tahrim sound for {next_prayer.name} prayer (10-minute)")
+                            self.audio_player.play_file(next_prayer.tahrim_sound, priority=self.audio_player.PRIORITY_ADHAN)
+                            time.sleep(1)  # Small delay before playing pre-adhan
                         
-                    logger.info(f"Playing 10-minute pre-adhan announcement for {next_prayer.name}")
-                    self.audio_player.play_file(next_prayer.pre_adhan_10_min, priority=self.audio_player.PRIORITY_ADHAN)
-                    
-                    # Broadcast pre-adhan message to WebSocket clients
-                    self._broadcast_prayer_message('pre_adhan_10_min', next_prayer)
+                        # Then handle pre-adhan announcement
+                        if hasattr(next_prayer, 'pre_adhan_10_min') and next_prayer.pre_adhan_10_min:
+                            # Create flag file BEFORE playing to prevent race conditions
+                            with open(pre_adhan_10_flag, 'w') as f:
+                                f.write(f"Played at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                                
+                            # Only stop audio if tahrim didn't already stop it
+                            if not (hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound):
+                                logger.info(f"Forcefully stopping any currently playing audio to prioritize pre-adhan announcement")
+                                self.audio_player.stop()
+                                time.sleep(0.5)  # Small delay to ensure audio is fully stopped
+                                
+                            logger.info(f"Playing 10-minute pre-adhan announcement for {next_prayer.name}")
+                            self.audio_player.play_file(next_prayer.pre_adhan_10_min, priority=self.audio_player.PRIORITY_ADHAN)
+                            
+                            # Broadcast pre-adhan message to WebSocket clients
+                            self._broadcast_prayer_message('pre_adhan_10_min', next_prayer)
             
             # Check for 5-minute pre-adhan announcement
-            elif 295 <= time_diff <= 305:  # Around 5 minutes before prayer time (300 seconds ± 5 seconds)
-                logger.info(f"5-minute pre-adhan check for {next_prayer.name}")
+            elif 290 <= time_diff <= 310:  # Around 5 minutes before prayer time (300 seconds ± 10 seconds)
+                # Set up flag file directory 
+                flag_dir = os.path.join(os.path.dirname(__file__), "flags")
+                os.makedirs(flag_dir, exist_ok=True)
                 
-                # Handle tahrim sound first (highest priority after adhan)
-                if hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound:
-                    logger.info(f"Forcefully stopping any currently playing audio to prioritize tahrim sound")
-                    self.audio_player.stop()
-                    time.sleep(0.5)  # Small delay to ensure audio is fully stopped
+                # Create unique flag files for pre-adhan 5 min
+                prayer_date_str = next_prayer.time.strftime('%Y-%m-%d')
+                pre_adhan_5_flag = os.path.join(flag_dir, f"{next_prayer.name}_{prayer_date_str}_pre_adhan_5.played")
+                
+                # Check if we've already played this pre-adhan announcement
+                if os.path.exists(pre_adhan_5_flag):
+                    # Already played, skip
+                    logger.debug(f"Already played 5-minute pre-adhan for {next_prayer.name} at {next_prayer.time.strftime('%H:%M')}")
+                    # We still want to check for precise time window to avoid rapid logs
+                    if 298 <= time_diff <= 302:
+                        logger.info(f"5-minute pre-adhan window active for {next_prayer.name} (already played)")
+                else:
+                    # Play it now if we're in the precise window
+                    logger.info(f"5-minute pre-adhan check for {next_prayer.name}")
                     
-                    logger.info(f"Playing tahrim sound for {next_prayer.name} prayer (5-minute)")
-                    self.audio_player.play_file(next_prayer.tahrim_sound, priority=self.audio_player.PRIORITY_ADHAN)
-                    time.sleep(1)  # Small delay before playing pre-adhan
-                
-                # Then handle pre-adhan announcement
-                if hasattr(next_prayer, 'pre_adhan_5_min') and next_prayer.pre_adhan_5_min:
-                    # Only stop audio if tahrim didn't already stop it
-                    if not (hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound):
-                        logger.info(f"Forcefully stopping any currently playing audio to prioritize pre-adhan announcement")
-                        self.audio_player.stop()
-                        time.sleep(0.5)  # Small delay to ensure audio is fully stopped
+                    # Narrow window for actual playback
+                    if 298 <= time_diff <= 302:  # Exactly at 5 minutes ± 2 seconds
+                        # Handle tahrim sound first (highest priority after adhan)
+                        if hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound:
+                            logger.info(f"Forcefully stopping any currently playing audio to prioritize tahrim sound")
+                            self.audio_player.stop()
+                            time.sleep(0.5)  # Small delay to ensure audio is fully stopped
+                            
+                            logger.info(f"Playing tahrim sound for {next_prayer.name} prayer (5-minute)")
+                            self.audio_player.play_file(next_prayer.tahrim_sound, priority=self.audio_player.PRIORITY_ADHAN)
+                            time.sleep(1)  # Small delay before playing pre-adhan
                         
-                    logger.info(f"Playing 5-minute pre-adhan announcement for {next_prayer.name}")
-                    self.audio_player.play_file(next_prayer.pre_adhan_5_min, priority=self.audio_player.PRIORITY_ADHAN)
-                    
-                    # Broadcast pre-adhan message to WebSocket clients
-                    self._broadcast_prayer_message('pre_adhan_5_min', next_prayer)
+                        # Then handle pre-adhan announcement
+                        if hasattr(next_prayer, 'pre_adhan_5_min') and next_prayer.pre_adhan_5_min:
+                            # Create flag file BEFORE playing to prevent race conditions
+                            with open(pre_adhan_5_flag, 'w') as f:
+                                f.write(f"Played at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                                
+                            # Only stop audio if tahrim didn't already stop it
+                            if not (hasattr(next_prayer, 'tahrim_sound') and next_prayer.tahrim_sound):
+                                logger.info(f"Forcefully stopping any currently playing audio to prioritize pre-adhan announcement")
+                                self.audio_player.stop()
+                                time.sleep(0.5)  # Small delay to ensure audio is fully stopped
+                                
+                            logger.info(f"Playing 5-minute pre-adhan announcement for {next_prayer.name}")
+                            self.audio_player.play_file(next_prayer.pre_adhan_5_min, priority=self.audio_player.PRIORITY_ADHAN)
+                            
+                            # Broadcast pre-adhan message to WebSocket clients
+                            self._broadcast_prayer_message('pre_adhan_5_min', next_prayer)
             
             # Check if it's time for adhan (within a wider window to ensure we don't miss it)
             # Make the window wider to reduce chances of missing the adhan
