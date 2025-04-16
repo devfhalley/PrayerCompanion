@@ -377,8 +377,41 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Create a sticky player that stays at the bottom of the page
     function createStickyPlayer() {
-        if (document.getElementById('sticky-player')) return;
+        // Use the existing global sticky player if it exists
+        if (document.getElementById('sticky-player')) {
+            // Update the global sticky player with our enhanced controls for prev/next
+            const stickyPlayer = document.getElementById('sticky-player');
+            
+            // Check if we need to add prev/next buttons to the global player
+            if (!document.getElementById('sticky-prev-button')) {
+                const controlsContainer = stickyPlayer.querySelector('.sticky-player-controls');
+                
+                // Add prev/next buttons to the beginning and end of controls
+                const prevButton = document.createElement('button');
+                prevButton.id = 'sticky-prev-button';
+                prevButton.className = 'player-btn';
+                prevButton.innerHTML = '<i class="fas fa-step-backward"></i>';
+                prevButton.addEventListener('click', playPreviousTrack);
+                
+                const nextButton = document.createElement('button');
+                nextButton.id = 'sticky-next-button';
+                nextButton.className = 'player-btn';
+                nextButton.innerHTML = '<i class="fas fa-step-forward"></i>';
+                nextButton.addEventListener('click', playNextTrack);
+                
+                // Insert at beginning and end
+                controlsContainer.insertBefore(prevButton, controlsContainer.firstChild);
+                controlsContainer.appendChild(nextButton);
+            }
+            
+            // Connect the global player's buttons to our local functions
+            document.getElementById('sticky-play-button').addEventListener('click', playCurrentTrack);
+            document.getElementById('sticky-pause-button').addEventListener('click', pausePlayback);
+            document.getElementById('sticky-stop-button').addEventListener('click', stopPlayback);
+            return;
+        }
         
+        // Create a new sticky player if none exists
         const stickyPlayer = document.createElement('div');
         stickyPlayer.id = 'sticky-player';
         stickyPlayer.className = 'sticky-player';

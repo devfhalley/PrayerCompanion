@@ -43,6 +43,7 @@
     <script src="{{ url_for('static', filename='js/global_ticker.js') }}?v={{ range(1000, 9999) | random }}"></script>
     <script src="{{ url_for('static', filename='js/volume_control.js') }}?v={{ range(1000, 9999) | random }}"></script>
     <script src="{{ url_for('static', filename='js/prayer_countdown.js') }}?v={{ range(1000, 9999) | random }}"></script>
+    <script src="{{ url_for('static', filename='js/global_murattal_player.js') }}?v={{ range(1000, 9999) | random }}"></script>
     {% block scripts %}{% endblock %}
     
     {% if request.endpoint != 'web_prayer_times' and request.endpoint != 'web_home' %}
