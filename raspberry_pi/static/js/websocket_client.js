@@ -339,11 +339,23 @@ function getWebSocketUrl(path = '/ws') {
 // Helper function to detect Replit environment
 function isReplitEnvironment() {
     const host = window.location.host || '';
-    return host.includes('replit') || 
-           host.includes('.repl.co') || 
-           host.includes('.repl.dev') || 
-           host.includes('.repl.run') ||
-           window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/); // IP address (Replit internal routing)
+    const isReplit = host.includes('replit') || 
+                    host.includes('.repl.co') || 
+                    host.includes('.repl.dev') || 
+                    host.includes('.repl.run') ||
+                    window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/) || // IP address (Replit internal routing)
+                    host.includes('.id.repl.co') ||
+                    window.location.hostname === '0.0.0.0' ||
+                    window.location.hostname === 'localhost';
+    
+    console.log("Environment detection: ", {
+        host: host,
+        hostname: window.location.hostname,
+        isReplit: isReplit
+    });
+    
+    // Always return true for now to ensure WebSockets are disabled in problematic environments
+    return true;
 }
 
 // Setup global WebSocket connection
