@@ -15,6 +15,10 @@
     --theme-toggle-bg: rgba(0, 0, 0, 0.2);
     --theme-toggle-color: #fff;
     
+    /* Footer colors */
+    --footer-bg: #333;
+    --footer-text: #fff;
+    
     /* Time-adaptive elements */
     --header-bg: linear-gradient(135deg, var(--primary-color), #2c6c3b);
     --card-highlight: rgba(76, 175, 80, 0.1);
@@ -33,6 +37,8 @@
     --shadow-color: rgba(0, 0, 0, 0.3);
     --theme-toggle-bg: rgba(255, 255, 255, 0.2);
     --theme-toggle-color: #f5f5f5;
+    --footer-bg: #1a1a1a; 
+    --footer-text: #f5f5f5;
 }
 
 /* Soft Ocean Theme - Palette 1 */
@@ -50,6 +56,8 @@
     --theme-toggle-color: #fff;
     --header-bg: linear-gradient(135deg, #3498db, #2980b9);
     --card-highlight: rgba(26, 188, 156, 0.1);
+    --footer-bg: #2c3e50; 
+    --footer-text: #ecf0f1;
 }
 
 /* Soft Desert Theme - Palette 2 */
@@ -67,6 +75,8 @@
     --theme-toggle-color: #fff;
     --header-bg: linear-gradient(135deg, #e67e22, #d35400);
     --card-highlight: rgba(241, 196, 15, 0.1);
+    --footer-bg: #34495e;
+    --footer-text: #f9f4e8;
 }
 
 /* Soft Lavender Theme - Palette 3 */
@@ -84,6 +94,8 @@
     --theme-toggle-color: #fff;
     --header-bg: linear-gradient(135deg, #9b59b6, #8e44ad);
     --card-highlight: rgba(52, 152, 219, 0.1);
+    --footer-bg: #8e44ad;
+    --footer-text: #f5effb;
 }
 
 /* Soft Mint Theme - Palette 4 */
@@ -101,6 +113,8 @@
     --theme-toggle-color: #fff;
     --header-bg: linear-gradient(135deg, #2ecc71, #27ae60);
     --card-highlight: rgba(243, 156, 18, 0.1);
+    --footer-bg: #27ae60;
+    --footer-text: #e8f8f0;
 }
 
 /* Theme Palette Preview Styles */
@@ -868,12 +882,13 @@ table th {
 }
 
 footer {
-    background-color: var(--text-color);
-    color: white;
+    background-color: var(--footer-bg);
+    color: var(--footer-text);
     text-align: center;
     padding: 20px 0;
     margin-top: 40px;
     margin-bottom: 40px; /* Add margin to bottom for global ticker */
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Mobile responsiveness */
