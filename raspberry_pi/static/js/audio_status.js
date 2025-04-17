@@ -97,8 +97,8 @@ async function checkAudioStatus() {
                 'Pragma': 'no-cache',
                 'Expires': '0'
             },
-            // Set a reasonable timeout
-            signal: AbortSignal.timeout(3000)
+            // Increase timeout for Replit environment
+            signal: AbortSignal.timeout(8000)
         });
         
         if (!response.ok) {
