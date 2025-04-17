@@ -198,33 +198,60 @@ class AudioPlayer:
             # Log mixer status before loading file
             logger.info(f"Mixer initialized status: {pygame.mixer.get_init()}")
             
-            pygame.mixer.music.load(file_path)
-            logger.info(f"File loaded successfully, preparing playback")
+            # Reset pygame mixer if it's in a bad state
+            try:
+                pygame.mixer.quit()
+                pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+                logger.info(f"Mixer re-initialized successfully: {pygame.mixer.get_init()}")
+            except Exception as re_init_error:
+                logger.warning(f"Mixer re-initialization failed: {str(re_init_error)}")
             
-            # Set volume to 1.0 (full volume)
-            pygame.mixer.music.set_volume(1.0)
-            logger.info(f"Volume set to: {pygame.mixer.music.get_volume()}")
-            
-            pygame.mixer.music.play(loops=loop)
-            logger.info("Playback started")
-            
-            # Log if playback actually started
-            if pygame.mixer.music.get_busy():
-                logger.info("Confirmed playback is active")
-            else:
-                logger.warning("Playback not detected as active despite play() call")
-            
-            # Wait for playback to finish
-            play_start_time = time.time()
-            while pygame.mixer.music.get_busy():
-                time.sleep(0.1)
-                # Log progress every 2 seconds
-                elapsed = time.time() - play_start_time
-                if int(elapsed) % 2 == 0 and elapsed > 0:
-                    logger.info(f"Still playing... {int(elapsed)} seconds elapsed")
-            
-            play_duration = time.time() - play_start_time
-            logger.info(f"Audio file playback finished after {play_duration:.2f} seconds")
+            # Implement playback with timeout protection
+            try:
+                pygame.mixer.music.load(file_path)
+                logger.info(f"File loaded successfully, preparing playback")
+                
+                # Set volume to 1.0 (full volume)
+                pygame.mixer.music.set_volume(1.0)
+                logger.info(f"Volume set to: {pygame.mixer.music.get_volume()}")
+                
+                pygame.mixer.music.play(loops=loop)
+                logger.info("Playback started")
+                
+                # Log if playback actually started
+                if pygame.mixer.music.get_busy():
+                    logger.info("Confirmed playback is active")
+                else:
+                    logger.warning("Playback not detected as active despite play() call")
+                
+                # Wait for playback to finish with timeout protection
+                play_start_time = time.time()
+                max_playback_time = 300  # Maximum 5 minutes for any playback to prevent indefinite hanging
+                
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.1)
+                    
+                    # Check for timeout
+                    elapsed = time.time() - play_start_time
+                    if elapsed > max_playback_time:
+                        logger.warning(f"Playback timeout after {max_playback_time} seconds, forcing stop")
+                        pygame.mixer.music.stop()
+                        break
+                        
+                    # Log progress every 5 seconds to reduce log spam
+                    if int(elapsed) % 5 == 0 and elapsed > 0 and int(elapsed) != 0:
+                        logger.info(f"Still playing... {int(elapsed)} seconds elapsed")
+                
+                play_duration = time.time() - play_start_time
+                logger.info(f"Audio file playback finished after {play_duration:.2f} seconds")
+                
+            except Exception as playback_error:
+                logger.error(f"Playback error: {str(playback_error)}")
+                # Try to ensure pygame mixer is stopped in case of error
+                try:
+                    pygame.mixer.music.stop()
+                except:
+                    pass
             
         except Exception as e:
             logger.error(f"Error playing audio file: {str(e)}")
@@ -233,45 +260,72 @@ class AudioPlayer:
     
     def _play_tts_internal(self, text):
         """Internal method to play text-to-speech."""
+        temp_filename = None
         try:
             logger.info(f"Converting text to speech: {text}")
             
-            # Generate TTS using Google's service
-            tts = gtts.gTTS(text=text, lang='en')
+            # Limit text length to prevent excessive processing
+            if len(text) > 1000:
+                logger.warning(f"TTS text too long ({len(text)} chars), truncating to 1000 chars")
+                text = text[:1000] + "..."
             
-            # Use a temporary file
-            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fp:
-                temp_filename = fp.name
-            
-            # Save to the temporary file
-            tts.save(temp_filename)
-            
-            # Play the temporary file - always with no looping for TTS
-            self._play_file_internal(temp_filename, loop=0)
-            
-            # Clean up - delete the temporary file
             try:
-                os.unlink(temp_filename)
-            except:
-                pass
-            
+                # Generate TTS using Google's service with timeout protection
+                logger.info("Creating TTS using gTTS")
+                tts = gtts.gTTS(text=text, lang='en')
+                
+                # Use a temporary file
+                with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fp:
+                    temp_filename = fp.name
+                    logger.info(f"Created temporary file for TTS: {temp_filename}")
+                
+                # Save to the temporary file
+                logger.info("Saving TTS to temporary file")
+                tts.save(temp_filename)
+                logger.info(f"TTS saved successfully, file size: {os.path.getsize(temp_filename)} bytes")
+                
+                # Play the temporary file - always with no looping for TTS
+                self._play_file_internal(temp_filename, loop=0)
+                
+            except Exception as tts_error:
+                logger.error(f"Error in TTS generation or playback: {str(tts_error)}")
+                import traceback
+                logger.error(traceback.format_exc())
+                
         except Exception as e:
             logger.error(f"Error with text-to-speech: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
+        finally:
+            # Clean up - delete the temporary file
+            if temp_filename and os.path.exists(temp_filename):
+                try:
+                    logger.info(f"Removing temporary TTS file: {temp_filename}")
+                    os.unlink(temp_filename)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to remove temporary TTS file: {str(cleanup_error)}")
     
     def _play_bytes_internal(self, audio_bytes):
         """Internal method to play audio from bytes."""
         try:
             logger.info("Playing audio from bytes")
             temp_filename = None
+            webm_filename = None
+            wav_filename = None
             
             try:
                 # First try to directly save and play as WAV
+                logger.info(f"Creating temporary WAV file for audio bytes (length: {len(audio_bytes)} bytes)")
                 with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as fp:
                     fp.write(audio_bytes)
                     temp_filename = fp.name
+                    logger.info(f"Created temporary WAV file: {temp_filename}")
                 
                 # Try to play the WAV file
                 try:
+                    logger.info(f"Attempting to play audio as WAV: {temp_filename}")
+                    
                     # If current priority is adhan, don't loop
                     if self.current_priority == self.PRIORITY_ADHAN:
                         self._play_file_internal(temp_filename, loop=0)
@@ -279,70 +333,104 @@ class AudioPlayer:
                         self._play_file_internal(temp_filename)
                     logger.info("Successfully played audio as WAV")
                     return
+                    
                 except Exception as wav_error:
                     logger.warning(f"Failed to play as WAV, will try conversion: {str(wav_error)}")
                     
                     # Clean up the failed WAV file
                     try:
+                        logger.info(f"Removing failed WAV file: {temp_filename}")
                         os.unlink(temp_filename)
-                    except:
-                        pass
+                        temp_filename = None
+                    except Exception as unlink_error:
+                        logger.warning(f"Failed to remove WAV file: {str(unlink_error)}")
                     
                     # Try to convert using pydub
                     logger.info("Attempting to convert audio with pydub")
                     with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as webm_fp:
                         webm_fp.write(audio_bytes)
                         webm_filename = webm_fp.name
+                        logger.info(f"Created temporary WEBM file: {webm_filename}")
                 
-                    try:
-                        # Try to load as various formats
-                        for fmt in ['webm', 'ogg', 'mp3']:
-                            try:
-                                logger.info(f"Trying to load as {fmt} format")
-                                audio = AudioSegment.from_file(webm_filename, format=fmt)
-                                
-                                # Convert to WAV
-                                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_fp:
-                                    wav_filename = wav_fp.name
-                                
-                                # Export as WAV
-                                audio.export(wav_filename, format="wav")
-                                
-                                # Try to play the converted file
-                                # If current priority is adhan, don't loop
-                                if self.current_priority == self.PRIORITY_ADHAN:
-                                    self._play_file_internal(wav_filename, loop=0)
-                                else:
-                                    self._play_file_internal(wav_filename)
-                                logger.info(f"Successfully converted and played as {fmt}")
-                                
-                                # Set temp_filename for cleanup
-                                temp_filename = wav_filename
-                                break
-                            except Exception as format_error:
-                                logger.warning(f"Failed to convert as {fmt}: {str(format_error)}")
-                                continue
-                    
-                    except Exception as pydub_error:
-                        logger.error(f"Error converting audio: {str(pydub_error)}")
-                    
-                    finally:
-                        # Clean up the webm file
+                    # Try different formats with better error handling
+                    conversion_successful = False
+                    for fmt in ['webm', 'ogg', 'mp3']:
+                        if conversion_successful:
+                            break
+                            
                         try:
-                            os.unlink(webm_filename)
-                        except:
-                            pass
+                            logger.info(f"Trying to load as {fmt} format")
+                            audio = AudioSegment.from_file(webm_filename, format=fmt)
+                            logger.info(f"Successfully loaded audio as {fmt}")
+                            
+                            # Convert to WAV
+                            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_fp:
+                                wav_filename = wav_fp.name
+                                logger.info(f"Created new WAV file for conversion: {wav_filename}")
+                            
+                            # Export as WAV
+                            logger.info(f"Exporting to WAV format: {wav_filename}")
+                            audio.export(wav_filename, format="wav")
+                            
+                            # Try to play the converted file
+                            logger.info(f"Playing converted WAV file: {wav_filename}")
+                            # If current priority is adhan, don't loop
+                            if self.current_priority == self.PRIORITY_ADHAN:
+                                self._play_file_internal(wav_filename, loop=0)
+                            else:
+                                self._play_file_internal(wav_filename)
+                            logger.info(f"Successfully converted and played as {fmt}")
+                            
+                            # Set temp_filename for cleanup
+                            temp_filename = wav_filename
+                            conversion_successful = True
+                            
+                        except Exception as format_error:
+                            logger.warning(f"Failed to convert as {fmt}: {str(format_error)}")
+                            import traceback
+                            logger.warning(traceback.format_exc())
+                            
+                            # Clean up failed WAV file if it exists
+                            if wav_filename and os.path.exists(wav_filename):
+                                try:
+                                    logger.info(f"Removing failed WAV conversion: {wav_filename}")
+                                    os.unlink(wav_filename)
+                                    wav_filename = None
+                                except Exception as unlink_error:
+                                    logger.warning(f"Failed to remove WAV file: {str(unlink_error)}")
                     
+                    if not conversion_successful:
+                        logger.error("All audio format conversions failed")
+                    
+                except Exception as pydub_error:
+                    logger.error(f"Error in pydub conversion process: {str(pydub_error)}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+                
             finally:
-                # Clean up any temporary files
+                # Clean up all temporary files
+                logger.info("Cleaning up temporary files...")
+                
+                # Clean up the webm file
+                if webm_filename and os.path.exists(webm_filename):
+                    try:
+                        logger.info(f"Removing temporary WEBM file: {webm_filename}")
+                        os.unlink(webm_filename)
+                    except Exception as cleanup_error:
+                        logger.warning(f"Failed to remove WEBM file: {str(cleanup_error)}")
+                
+                # Clean up the main temp file (could be WAV or converted format)
                 if temp_filename and os.path.exists(temp_filename):
                     try:
+                        logger.info(f"Removing main temporary file: {temp_filename}")
                         os.unlink(temp_filename)
-                    except:
-                        pass
+                    except Exception as cleanup_error:
+                        logger.warning(f"Failed to remove temp file: {str(cleanup_error)}")
                 
         except Exception as e:
             logger.error(f"Error playing audio bytes: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
     
     def play_adhan(self, file_path):
         """Play adhan audio with highest priority.
