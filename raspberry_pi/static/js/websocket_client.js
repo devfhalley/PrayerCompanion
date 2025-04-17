@@ -9,8 +9,8 @@
 
 class ReliableWebSocket {
     constructor(url, options = {}) {
-        // Set Replit environment detection to false to enable WebSockets testing
-        this.inReplitEnvironment = false; // Always false to enable WebSockets
+        // Check if we're in Replit environment - completely disable WebSockets if so
+        this.inReplitEnvironment = window.location.host.includes('replit');
         
         this.url = url;
         this.options = Object.assign({
@@ -34,7 +34,12 @@ class ReliableWebSocket {
         this.connectionTimer = null;
         this.manualClose = false;
         
-        // We're now allowing WebSocket connections even in Replit
+        // In Replit, we completely disable WebSockets to avoid errors
+        if (this.inReplitEnvironment) {
+            console.log('Replit environment detected - WebSockets are disabled');
+            console.info('Real-time updates via WebSockets are only available when deployed');
+        }
+        
         this.connect();
     }
     
@@ -337,8 +342,14 @@ function getWebSocketUrl(socketType = 'ptt') {
         path = '/ws/audio';
     }
     
-    // We're always returning a valid WebSocket URL even in Replit
-    // for testing purposes - remove this in production if needed
+    // Check if we're in Replit environment - if so, return null to prevent connection attempts
+    const inReplitEnv = isReplitEnvironment();
+    if (inReplitEnv) {
+        console.info(`In Replit environment - WebSockets (${socketType}) disabled`);
+        return null;
+    }
+    
+    // Only proceed with URL construction for non-Replit environments
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     
@@ -364,9 +375,9 @@ function isReplitEnvironment() {
         isReplit: isReplit
     });
     
-    // Always return false to act as if we're in production environment
-    // This enables WebSocket functionality in Replit for testing
-    return false;
+    // Properly detect Replit environment and disable WebSockets to avoid errors
+    // WebSockets will not work reliably in Replit preview environment
+    return isReplit;
 }
 
 // Global WebSocket connections
@@ -560,9 +571,5 @@ function setupGlobalWebSocket() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    // PRODUCTION_MODE can be set to true to force WebSocket connections
-    window.PRODUCTION_MODE = true;
-    
-    // Always setup WebSockets for testing in Replit
     setupDualWebSockets();
 });
