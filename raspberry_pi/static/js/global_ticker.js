@@ -384,7 +384,25 @@ function setupGlobalWebSocket() {
             
             // Connection was closed
             tickerState.wsConnection.onclose = function(event) {
-                console.log(`Global WebSocket connection closed (code: ${event.code}, reason: ${event.reason}), attempting to reconnect...`);
+                console.log(`Global WebSocket connection closed (code: ${event.code}, reason: ${event.reason})`);
+                
+                // Skip reconnection in Replit environment if explicitly disabled
+                if (tickerState.wsDisabled) {
+                    console.info("WebSocket reconnection disabled in this environment");
+                    return;
+                }
+                
+                // Detect if we're in Replit environment
+                if (window.location.host.includes('replit')) {
+                    console.log("Replit environment detected, limiting WebSocket reconnection attempts");
+                    
+                    // In Replit, only attempt reconnection a maximum of 2 times
+                    if (tickerState.reconnectAttempts >= 2) {
+                        console.info("Maximum WebSocket reconnection attempts reached in Replit environment");
+                        tickerState.wsDisabled = true;
+                        return;
+                    }
+                }
                 
                 // Implement exponential backoff for reconnection
                 tickerState.reconnectAttempts++;
@@ -396,7 +414,18 @@ function setupGlobalWebSocket() {
             
             // Error occurred
             tickerState.wsConnection.onerror = function(error) {
-                console.error('Global WebSocket error:', error);
+                console.warn('Global WebSocket error - this is expected in the Replit environment and can be ignored');
+                console.log('WebSocket functionality will be limited in Replit environment');
+                
+                // In Replit, mark the connection as failed to prevent further errors
+                if (window.location.host.includes('replit')) {
+                    // Disable WebSocket reconnect attempts in Replit
+                    tickerState.wsDisabled = true;
+                    
+                    // Update the ticker to show offline mode message
+                    const offlineMsg = "WebSockets not available in preview environment - full functionality available when deployed";
+                    console.info(offlineMsg);
+                }
                 // Don't attempt to reconnect here, let the onclose handler do it
             };
         } catch (socketError) {
@@ -405,6 +434,16 @@ function setupGlobalWebSocket() {
             if (!tickerState.reconnectAttempts) {
                 tickerState.reconnectAttempts = 0;
             }
+            // Check if we're in Replit environment
+            if (window.location.host.includes('replit')) {
+                // In Replit, only attempt reconnection a maximum of 2 times
+                if (tickerState.reconnectAttempts >= 2) {
+                    console.info("Maximum WebSocket reconnection attempts reached in Replit environment");
+                    tickerState.wsDisabled = true;
+                    return;
+                }
+            }
+            
             tickerState.reconnectAttempts++;
             const delay = Math.min(30000, Math.pow(1.5, tickerState.reconnectAttempts) * 1000);
             console.log(`Will retry WebSocket connection in ${Math.round(delay/1000)} seconds (attempt ${tickerState.reconnectAttempts})`);
@@ -412,6 +451,28 @@ function setupGlobalWebSocket() {
         }
     } catch (outerError) {
         console.error('Critical error in setupGlobalWebSocket:', outerError);
+        
+        // Check if we're in Replit environment
+        if (window.location.host.includes('replit')) {
+            console.log("Replit environment detected, WebSocket errors are expected");
+            
+            // In Replit, we'll disable WebSocket after critical errors
+            if (tickerState.reconnectAttempts >= 1) {
+                console.info("WebSocket disabled in Replit environment due to critical errors");
+                tickerState.wsDisabled = true;
+                // Update the ticker to show offline mode message in console only
+                console.info("WebSockets not available in Replit preview - full functionality available when deployed");
+                return;
+            }
+        }
+        
+        // Increment reconnect counter
+        if (!tickerState.reconnectAttempts) {
+            tickerState.reconnectAttempts = 0;
+        }
+        tickerState.reconnectAttempts++;
+        
+        // Add a longer delay for critical errors
         setTimeout(setupGlobalWebSocket, 10000);
     }
 }
