@@ -303,10 +303,12 @@ function createFloatingCountdownWidget(prayerTimesState) {
                 right: 20px;
                 width: 280px;
                 border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                background-color: var(--card-bg);
+                color: var(--text-color);
+                box-shadow: 0 4px 12px var(--shadow-color, rgba(0, 0, 0, 0.15));
                 padding: 15px;
                 z-index: 1000;
-                transition: opacity 0.3s, transform 0.3s;
+                transition: opacity 0.3s, transform 0.3s, background-color 0.3s, color 0.3s;
             }
             
             .prayer-countdown.floating.hidden {
@@ -325,15 +327,26 @@ function createFloatingCountdownWidget(prayerTimesState) {
                 border: none;
                 font-size: 16px;
                 cursor: pointer;
-                color: #777;
+                color: var(--light-text, #777);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 padding: 0;
+                transition: color 0.3s;
             }
             
             .countdown-close-btn:hover {
-                color: #333;
+                color: var(--text-color, #333);
+            }
+            
+            /* Make sure countdown elements follow theme */
+            .countdown-header, 
+            .countdown-timer,
+            .countdown-value, 
+            .countdown-label, 
+            .countdown-separator {
+                color: var(--text-color);
+                transition: color 0.3s;
             }
         `;
         document.head.appendChild(style);
