@@ -354,8 +354,9 @@ function isReplitEnvironment() {
         isReplit: isReplit
     });
     
-    // Always return true for now to ensure WebSockets are disabled in problematic environments
-    return true;
+    // Temporarily set to false to attempt WebSocket connections in Replit 
+    // This is for testing purposes only and may not work reliably
+    return false;
 }
 
 // Setup global WebSocket connection

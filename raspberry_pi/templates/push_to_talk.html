@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize everything
     async function initialize() {
         // Check if we're in the Replit environment first
-        if (isReplitEnvironment()) {
+        if (false) { // Temporarily disabled the check to enable WebSockets for testing
             // In Replit environment, display the notice
             const replitNotice = document.getElementById('replit-notice');
             if (replitNotice) {
