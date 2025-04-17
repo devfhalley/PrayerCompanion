@@ -183,6 +183,57 @@
             <input type="range" id="volume" class="form-control" min="0" max="100" value="{{ volume }}">
             <span id="volume-value">{{ volume }}%</span>
         </div>
+        
+        <div class="form-group">
+            <label for="theme-palette-selector">Theme Palette</label>
+            <select id="theme-palette-selector" class="form-control">
+                <option value="light">Light (Default)</option>
+                <option value="dark">Dark</option>
+                <option value="ocean">Soft Ocean</option>
+                <option value="desert">Soft Desert</option>
+                <option value="lavender">Soft Lavender</option>
+                <option value="mint">Soft Mint</option>
+            </select>
+            <div class="theme-palette-preview">
+                <div class="color-swatch-container">
+                    <div class="color-swatch" data-theme="light">
+                        <span class="primary"></span>
+                        <span class="secondary"></span>
+                        <span class="accent"></span>
+                    </div>
+                    <div class="color-swatch" data-theme="dark">
+                        <span class="primary"></span>
+                        <span class="secondary"></span>
+                        <span class="accent"></span>
+                    </div>
+                    <div class="color-swatch" data-theme="ocean">
+                        <span class="primary"></span>
+                        <span class="secondary"></span>
+                        <span class="accent"></span>
+                    </div>
+                    <div class="color-swatch" data-theme="desert">
+                        <span class="primary"></span>
+                        <span class="secondary"></span>
+                        <span class="accent"></span>
+                    </div>
+                    <div class="color-swatch" data-theme="lavender">
+                        <span class="primary"></span>
+                        <span class="secondary"></span>
+                        <span class="accent"></span>
+                    </div>
+                    <div class="color-swatch" data-theme="mint">
+                        <span class="primary"></span>
+                        <span class="secondary"></span>
+                        <span class="accent"></span>
+                    </div>
+                </div>
+            </div>
+            <p class="theme-description">
+                Select from various soft color palettes for a personalized experience.
+                Your selection is saved automatically.
+            </p>
+        </div>
+        
         <button id="save-preferences" class="btn">Save Preferences</button>
     </div>
 </div>
@@ -338,6 +389,43 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // System preferences
     document.getElementById('save-preferences').addEventListener('click', savePreferences);
+    
+    // Theme palette swatches functionality
+    const colorSwatches = document.querySelectorAll('.color-swatch');
+    const themePaletteSelector = document.getElementById('theme-palette-selector');
+    
+    // Initialize active swatch based on current theme
+    updateActiveColorSwatch(localStorage.getItem('theme') || 'light');
+    
+    colorSwatches.forEach(swatch => {
+        swatch.addEventListener('click', function() {
+            const themeValue = this.getAttribute('data-theme');
+            themePaletteSelector.value = themeValue;
+            
+            // Trigger the change event on the selector
+            const event = new Event('change');
+            themePaletteSelector.dispatchEvent(event);
+            
+            // Update active swatch
+            updateActiveColorSwatch(themeValue);
+        });
+    });
+    
+    // Update active swatch when dropdown changes
+    themePaletteSelector.addEventListener('change', function() {
+        updateActiveColorSwatch(this.value);
+    });
+    
+    // Function to update active swatch
+    function updateActiveColorSwatch(theme) {
+        colorSwatches.forEach(swatch => {
+            if (swatch.getAttribute('data-theme') === theme) {
+                swatch.classList.add('active');
+            } else {
+                swatch.classList.remove('active');
+            }
+        });
+    }
 });
 
 // Function to test default adhan

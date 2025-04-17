@@ -1,6 +1,6 @@
 /**
  * Theme Switcher
- * This script handles toggling between light and dark theme
+ * This script handles toggling between themes
  * with smooth transitions and localStorage persistence
  */
 
@@ -13,44 +13,92 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check for saved user preference, if any
     const userTheme = localStorage.getItem('theme');
     
+    // Theme palette selector
+    const themePaletteSelector = document.getElementById('theme-palette-selector');
+    
+    // List of available themes
+    const availableThemes = ['light', 'dark', 'ocean', 'desert', 'lavender', 'mint'];
+    
     // Set the initial theme based on user preference or system preference
+    let initialTheme = 'light';
+    
+    // Handle legacy theme setting or set system default
     if (userTheme === 'dark' || (!userTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.setAttribute('data-theme', 'dark');
+        initialTheme = 'dark';
+    } else if (availableThemes.includes(userTheme)) {
+        initialTheme = userTheme;
+    }
+    
+    // Apply the initial theme
+    document.documentElement.setAttribute('data-theme', initialTheme);
+    
+    // Update theme toggle button icons
+    if (initialTheme === 'dark' || ['ocean', 'desert', 'lavender', 'mint'].includes(initialTheme)) {
         darkIcon.style.display = 'none';
         lightIcon.style.display = 'block';
     } else {
-        document.documentElement.setAttribute('data-theme', 'light');
         darkIcon.style.display = 'block';
         lightIcon.style.display = 'none';
     }
     
-    // Toggle theme when the button is clicked
+    // Set initial selection in theme palette dropdown if it exists
+    if (themePaletteSelector) {
+        themePaletteSelector.value = initialTheme;
+        
+        // Listen for theme palette changes
+        themePaletteSelector.addEventListener('change', function() {
+            const newTheme = this.value;
+            changeTheme(newTheme);
+        });
+    }
+    
+    // Toggle between light and dark theme when the button is clicked
     themeToggle.addEventListener('click', function() {
         let currentTheme = document.documentElement.getAttribute('data-theme');
         let newTheme;
         
-        if (currentTheme === 'light') {
+        // Main toggle just switches between light and dark
+        if (currentTheme === 'light' || 
+            currentTheme === 'ocean' || 
+            currentTheme === 'desert' || 
+            currentTheme === 'lavender' || 
+            currentTheme === 'mint') {
             newTheme = 'dark';
-            darkIcon.style.display = 'none';
-            lightIcon.style.display = 'block';
         } else {
             newTheme = 'light';
-            darkIcon.style.display = 'block';
-            lightIcon.style.display = 'none';
         }
         
+        changeTheme(newTheme);
+        
+        // Update theme palette selector if it exists
+        if (themePaletteSelector) {
+            themePaletteSelector.value = newTheme;
+        }
+    });
+    
+    // Function to change theme
+    function changeTheme(newTheme) {
         // Apply the new theme
         document.documentElement.setAttribute('data-theme', newTheme);
         
         // Save the preference to localStorage
         localStorage.setItem('theme', newTheme);
         
+        // Update toggle button icons
+        if (newTheme === 'dark' || ['ocean', 'desert', 'lavender', 'mint'].includes(newTheme)) {
+            darkIcon.style.display = 'none';
+            lightIcon.style.display = 'block';
+        } else {
+            darkIcon.style.display = 'block';
+            lightIcon.style.display = 'none';
+        }
+        
         // Add a slight animation to indicate the theme change
         themeToggle.classList.add('animate-toggle');
         setTimeout(() => {
             themeToggle.classList.remove('animate-toggle');
         }, 300);
-    });
+    }
     
     // Enhance keyboard accessibility
     themeToggle.addEventListener('keydown', function(e) {

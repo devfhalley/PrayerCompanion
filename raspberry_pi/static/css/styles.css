@@ -35,6 +35,191 @@
     --theme-toggle-color: #f5f5f5;
 }
 
+/* Soft Ocean Theme - Palette 1 */
+[data-theme="ocean"] {
+    --primary-color: #3498db;
+    --secondary-color: #2980b9;
+    --accent-color: #1abc9c;
+    --error-color: #e74c3c;
+    --text-color: #2c3e50;
+    --light-bg: #ecf0f1;
+    --card-bg: #ffffff;
+    --divider-color: #bdc3c7;
+    --shadow-color: rgba(0, 0, 0, 0.15);
+    --theme-toggle-bg: rgba(0, 0, 0, 0.2);
+    --theme-toggle-color: #fff;
+    --header-bg: linear-gradient(135deg, #3498db, #2980b9);
+    --card-highlight: rgba(26, 188, 156, 0.1);
+}
+
+/* Soft Desert Theme - Palette 2 */
+[data-theme="desert"] {
+    --primary-color: #e67e22;
+    --secondary-color: #d35400;
+    --accent-color: #f1c40f;
+    --error-color: #c0392b;
+    --text-color: #34495e;
+    --light-bg: #f9f4e8;
+    --card-bg: #ffffff;
+    --divider-color: #eee8d5;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --theme-toggle-bg: rgba(0, 0, 0, 0.2);
+    --theme-toggle-color: #fff;
+    --header-bg: linear-gradient(135deg, #e67e22, #d35400);
+    --card-highlight: rgba(241, 196, 15, 0.1);
+}
+
+/* Soft Lavender Theme - Palette 3 */
+[data-theme="lavender"] {
+    --primary-color: #9b59b6;
+    --secondary-color: #8e44ad;
+    --accent-color: #3498db;
+    --error-color: #e74c3c;
+    --text-color: #2c3e50;
+    --light-bg: #f5effb;
+    --card-bg: #ffffff;
+    --divider-color: #d7cde0;
+    --shadow-color: rgba(0, 0, 0, 0.15);
+    --theme-toggle-bg: rgba(0, 0, 0, 0.2);
+    --theme-toggle-color: #fff;
+    --header-bg: linear-gradient(135deg, #9b59b6, #8e44ad);
+    --card-highlight: rgba(52, 152, 219, 0.1);
+}
+
+/* Soft Mint Theme - Palette 4 */
+[data-theme="mint"] {
+    --primary-color: #2ecc71;
+    --secondary-color: #27ae60;
+    --accent-color: #f39c12;
+    --error-color: #e74c3c;
+    --text-color: #2c3e50;
+    --light-bg: #e8f8f0;
+    --card-bg: #ffffff;
+    --divider-color: #d5f5e3;
+    --shadow-color: rgba(0, 0, 0, 0.15);
+    --theme-toggle-bg: rgba(0, 0, 0, 0.2);
+    --theme-toggle-color: #fff;
+    --header-bg: linear-gradient(135deg, #2ecc71, #27ae60);
+    --card-highlight: rgba(243, 156, 18, 0.1);
+}
+
+/* Theme Palette Preview Styles */
+.theme-palette-preview {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 6px;
+    background-color: var(--light-bg);
+}
+
+.color-swatch-container {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.color-swatch {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 8px;
+    border: 2px solid transparent;
+    transition: transform 0.2s, border-color 0.2s;
+    background-color: white;
+    min-width: 60px;
+}
+
+.color-swatch:hover {
+    transform: translateY(-2px);
+}
+
+.color-swatch.active {
+    border-color: var(--accent-color);
+}
+
+/* Light theme swatch */
+.color-swatch[data-theme="light"] .primary {
+    background-color: #4CAF50;
+}
+.color-swatch[data-theme="light"] .secondary {
+    background-color: #2196F3;
+}
+.color-swatch[data-theme="light"] .accent {
+    background-color: #FF9800;
+}
+
+/* Dark theme swatch */
+.color-swatch[data-theme="dark"] {
+    background-color: #333;
+}
+.color-swatch[data-theme="dark"] .primary {
+    background-color: #81c784;
+}
+.color-swatch[data-theme="dark"] .secondary {
+    background-color: #64b5f6;
+}
+.color-swatch[data-theme="dark"] .accent {
+    background-color: #ffb74d;
+}
+
+/* Ocean theme swatch */
+.color-swatch[data-theme="ocean"] .primary {
+    background-color: #3498db;
+}
+.color-swatch[data-theme="ocean"] .secondary {
+    background-color: #2980b9;
+}
+.color-swatch[data-theme="ocean"] .accent {
+    background-color: #1abc9c;
+}
+
+/* Desert theme swatch */
+.color-swatch[data-theme="desert"] .primary {
+    background-color: #e67e22;
+}
+.color-swatch[data-theme="desert"] .secondary {
+    background-color: #d35400;
+}
+.color-swatch[data-theme="desert"] .accent {
+    background-color: #f1c40f;
+}
+
+/* Lavender theme swatch */
+.color-swatch[data-theme="lavender"] .primary {
+    background-color: #9b59b6;
+}
+.color-swatch[data-theme="lavender"] .secondary {
+    background-color: #8e44ad;
+}
+.color-swatch[data-theme="lavender"] .accent {
+    background-color: #3498db;
+}
+
+/* Mint theme swatch */
+.color-swatch[data-theme="mint"] .primary {
+    background-color: #2ecc71;
+}
+.color-swatch[data-theme="mint"] .secondary {
+    background-color: #27ae60;
+}
+.color-swatch[data-theme="mint"] .accent {
+    background-color: #f39c12;
+}
+
+.color-swatch span {
+    height: 16px;
+    width: 100%;
+    border-radius: 3px;
+}
+
+.theme-description {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--light-text);
+}
+
 body {
     font-family: 'Roboto', Arial, sans-serif;
     line-height: 1.6;
