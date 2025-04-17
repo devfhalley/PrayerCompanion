@@ -340,6 +340,13 @@ function createFloatingCountdownWidget(prayerTimesState) {
             }
             
             /* Make sure countdown elements follow theme */
+            .prayer-countdown {
+                background-color: var(--card-bg);
+                color: var(--text-color);
+                box-shadow: 0 4px 12px var(--shadow-color, rgba(0, 0, 0, 0.15));
+                transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+            }
+            
             .countdown-header, 
             .countdown-timer,
             .countdown-value, 
@@ -347,6 +354,11 @@ function createFloatingCountdownWidget(prayerTimesState) {
             .countdown-separator {
                 color: var(--text-color);
                 transition: color 0.3s;
+            }
+            
+            .prayer-progress-bar {
+                background-color: var(--light-bg);
+                transition: background-color 0.3s;
             }
         `;
         document.head.appendChild(style);

@@ -71,10 +71,23 @@ def custom_static(filename):
     # Use send_from_directory instead of app.send_static_file for more control
     response = send_from_directory(static_dir, filename)
     
-    # Set cache control headers
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
+    # For CSS and JS files, use a different caching strategy to prevent ERR_TOO_MANY_RETRIES
+    if filename.endswith('.css') or filename.endswith('.js'):
+        # Use a longer cache time but with versioned content via ETag
+        response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 hour
+        etag_value = f'"{BUILD_ID}-{os.path.getmtime(full_path)}"'
+        response.headers['ETag'] = etag_value
+        
+        # Set proper content type
+        if filename.endswith('.css'):
+            response.headers['Content-Type'] = 'text/css; charset=utf-8'
+        elif filename.endswith('.js'):
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+    else:
+        # For other files use no-cache approach
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
     
     # Add custom header to track build ID
     response.headers['X-Build-ID'] = BUILD_ID
@@ -82,7 +95,10 @@ def custom_static(filename):
     # Add special header for Chrome
     response.headers['X-Chrome-No-Cache'] = 'true'
     
-    logger.info(f"Serving {filename} with cache busting headers")
+    # Add CORS headers to avoid potential issues
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    
+    logger.info(f"Serving {filename} with optimized caching headers")
     return response
 
 # Initialize components

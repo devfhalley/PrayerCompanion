@@ -8,6 +8,20 @@
     --light-bg: #f5f5f5;
     --card-bg: #fff;
     --divider-color: #e0e0e0;
+    --shadow-color: rgba(0, 0, 0, 0.15);
+}
+
+/* Dark theme variables */
+[data-theme="dark"] {
+    --primary-color: #81c784;
+    --secondary-color: #64b5f6;
+    --accent-color: #ffb74d;
+    --error-color: #e57373;
+    --text-color: #f5f5f5;
+    --light-bg: #2d2d2d;
+    --card-bg: #3d3d3d;
+    --divider-color: #555;
+    --shadow-color: rgba(0, 0, 0, 0.3);
 }
 
 body {
@@ -178,12 +192,27 @@ table th {
     border: 1px solid var(--divider-color);
     border-radius: 4px;
     font-size: 14px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+[data-theme="dark"] .form-control {
+    background-color: rgba(30, 30, 30, 0.9);
+    border-color: #444;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
 .alert {
     padding: 10px 15px;
     border-radius: 4px;
     margin-bottom: 15px;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
 .alert-success {
@@ -192,10 +221,22 @@ table th {
     border: 1px solid #c3e6cb;
 }
 
+[data-theme="dark"] .alert-success {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: #81c784;
+    border: 1px solid rgba(76, 175, 80, 0.4);
+}
+
 .alert-error {
     background-color: #f8d7da;
     color: #721c24;
     border: 1px solid #f5c6cb;
+}
+
+[data-theme="dark"] .alert-error {
+    background-color: rgba(244, 67, 54, 0.2);
+    color: #e57373;
+    border: 1px solid rgba(244, 67, 54, 0.4);
 }
 
 .adhan-ticker {
@@ -236,6 +277,11 @@ table th {
     padding: 15px;
     border-left: 4px solid var(--primary-color);
     margin-bottom: 20px;
+    transition: background-color 0.3s;
+}
+
+[data-theme="dark"] .next-prayer {
+    background-color: rgba(76, 175, 80, 0.15);
 }
 
 .prayer-actions {
@@ -391,6 +437,11 @@ table th {
 .murattal-item.active {
     background-color: #e8f5e9;
     border-left: 3px solid var(--primary-color);
+    transition: background-color 0.3s;
+}
+
+[data-theme="dark"] .murattal-item.active {
+    background-color: rgba(76, 175, 80, 0.15);
 }
 
 .murattal-item .play-icon {
@@ -409,7 +460,12 @@ table th {
     border-radius: 8px;
     overflow: hidden;
     margin-bottom: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px var(--shadow-color);
+    transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+[data-theme="dark"] .murattal-player-section {
+    background-color: #3a3a3a;
 }
 
 .murattal-player-header {
@@ -435,6 +491,11 @@ table th {
     padding: 10px;
     border-radius: 4px;
     background-color: rgba(0, 0, 0, 0.05);
+    transition: background-color 0.3s;
+}
+
+[data-theme="dark"] .murattal-title {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .murattal-controls {
@@ -457,12 +518,21 @@ table th {
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 5px var(--shadow-color);
+}
+
+[data-theme="dark"] .player-btn {
+    background-color: #555;
+    color: #f5f5f5;
 }
 
 .player-btn:hover {
     background-color: #e0e0e0;
     transform: scale(1.05);
+}
+
+[data-theme="dark"] .player-btn:hover {
+    background-color: #666;
 }
 
 .player-btn:active {
@@ -503,12 +573,16 @@ table th {
     left: 0;
     right: 0;
     background-color: rgba(255, 255, 255, 0.95);
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 -2px 10px var(--shadow-color);
     padding: 10px 20px;
     z-index: 1000;
     transform: translateY(0); /* Always visible */
-    transition: transform 0.3s ease-in-out;
+    transition: transform 0.3s ease-in-out, background-color 0.3s ease, box-shadow 0.3s ease;
     border-top: 3px solid var(--primary-color);
+}
+
+[data-theme="dark"] .sticky-player {
+    background-color: rgba(50, 50, 50, 0.95);
 }
 
 /* Keep this class for backward compatibility, but it no longer affects visibility */
@@ -694,8 +768,14 @@ body.murattal-playing .global-ticker {
     background: linear-gradient(135deg, #2b8a3e, #2c6c3b);
     border-radius: 10px;
     color: white;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 15px var(--shadow-color);
     position: relative;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+[data-theme="dark"] .prayer-countdown {
+    background: linear-gradient(135deg, #1e5e2a, #174522);
+    box-shadow: 0 4px 15px var(--shadow-color);
 }
 
 .prayer-countdown.floating {
@@ -804,7 +884,12 @@ body.murattal-playing .global-ticker {
     margin-bottom: 5px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 10px var(--shadow-color);
+    transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+[data-theme="dark"] .countdown-value {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .countdown-value:before {
@@ -880,6 +965,11 @@ body.murattal-playing .global-ticker {
     align-items: center;
     margin-top: 10px;
     color: #666;
+    transition: color 0.3s;
+}
+
+[data-theme="dark"] .spinner {
+    color: #aaa;
 }
 
 .spinner-border {
@@ -890,6 +980,12 @@ body.murattal-playing .global-ticker {
     border-top-color: #2b8a3e;
     margin-right: 10px;
     animation: spinner 1s linear infinite;
+    transition: border-color 0.3s;
+}
+
+[data-theme="dark"] .spinner-border {
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #2b8a3e;
 }
 
 @keyframes spinner {
@@ -915,9 +1011,10 @@ button:disabled {
     margin: 0 auto 10px;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 8px var(--shadow-color);
     background-color: #000;
     aspect-ratio: 16 / 9;
+    transition: box-shadow 0.3s;
 }
 
 .youtube-controls {
@@ -935,6 +1032,25 @@ button:disabled {
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background-color 0.3s, color 0.3s, transform 0.2s;
+}
+
+.youtube-controls button:hover {
+    transform: translateY(-2px);
+}
+
+.youtube-controls button:active {
+    transform: translateY(0);
+}
+
+[data-theme="dark"] .youtube-controls button {
+    background-color: rgba(50, 50, 50, 0.9);
+    color: #f5f5f5;
+    border: 1px solid #444;
+}
+
+[data-theme="dark"] .youtube-controls button:hover {
+    background-color: rgba(70, 70, 70, 0.9);
 }
 
 #youtube-playlist {
@@ -942,18 +1058,32 @@ button:disabled {
     border: 1px solid var(--divider-color);
     border-radius: 8px;
     overflow: hidden;
+    box-shadow: 0 2px 8px var(--shadow-color);
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+[data-theme="dark"] #youtube-playlist {
+    border-color: #444;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .playlist-header {
-    background-color: var(--primary-color);
+    background: linear-gradient(135deg, var(--primary-color), #2c6c3b);
     color: white;
     padding: 10px 15px;
     font-weight: bold;
+    transition: background 0.3s;
+}
+
+[data-theme="dark"] .playlist-header {
+    background: linear-gradient(135deg, #1e5e2a, #174522);
 }
 
 .playlist-items {
     max-height: 300px;
     overflow-y: auto;
+    background-color: var(--card-bg);
+    transition: background-color 0.3s;
 }
 
 .playlist-item {
@@ -971,11 +1101,21 @@ button:disabled {
 
 .playlist-item:hover {
     background-color: var(--light-bg);
+    transition: background-color 0.3s;
+}
+
+[data-theme="dark"] .playlist-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .playlist-item.active {
     background-color: #e8f5e9;
     border-left: 3px solid var(--primary-color);
+    transition: background-color 0.3s;
+}
+
+[data-theme="dark"] .playlist-item.active {
+    background-color: rgba(76, 175, 80, 0.15);
 }
 
 .playlist-item-title {
@@ -995,9 +1135,20 @@ button:disabled {
 }
 
 .no-videos {
-    padding: 20px;
+    padding: 30px;
     text-align: center;
     color: #666;
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+    margin: 20px 0;
+    transition: color 0.3s, background-color 0.3s;
+    border: 1px dashed #ddd;
+}
+
+[data-theme="dark"] .no-videos {
+    color: #aaa;
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: #444;
 }
 
 /* YouTube management in settings */
@@ -1006,6 +1157,11 @@ button:disabled {
     padding: 15px;
     background-color: var(--light-bg);
     border-radius: 8px;
+    transition: background-color 0.3s;
+}
+
+[data-theme="dark"] .youtube-form {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .youtube-list {
@@ -1017,6 +1173,15 @@ button:disabled {
     align-items: center;
     padding: 10px;
     border-bottom: 1px solid var(--divider-color);
+    transition: border-color 0.3s, background-color 0.3s;
+}
+
+.youtube-item:hover {
+    background-color: var(--light-bg);
+}
+
+[data-theme="dark"] .youtube-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .youtube-item:last-child {
@@ -1037,6 +1202,11 @@ button:disabled {
     cursor: move;
     padding: 0 8px;
     color: #999;
+    transition: color 0.3s;
+}
+
+[data-theme="dark"] .youtube-item-handle {
+    color: #777;
 }
 
 /* Modal styles for YouTube video editing */
@@ -1049,7 +1219,12 @@ button:disabled {
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: rgba(0, 0, 0, 0.6);
+    transition: background-color 0.3s;
+}
+
+[data-theme="dark"] .modal {
+    background-color: rgba(0, 0, 0, 0.75);
 }
 
 .modal-content {
@@ -1057,10 +1232,11 @@ button:disabled {
     margin: 15% auto;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 15px var(--shadow-color);
     width: 80%;
     max-width: 500px;
     position: relative;
+    transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 .modal-header {
@@ -1081,6 +1257,11 @@ button:disabled {
     font-size: 28px;
     font-weight: bold;
     cursor: pointer;
+    transition: color 0.3s;
+}
+
+[data-theme="dark"] .close {
+    color: #888;
 }
 
 .close:hover,
