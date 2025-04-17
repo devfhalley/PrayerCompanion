@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <!-- Use our new no-cache route specifically designed for Chrome -->
-    <link rel="stylesheet" href="{{ url_for('custom_static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="/static-nocache/css/styles.css">
     {% block styles %}{% endblock %}
     
     <!-- Fallback for styles.css -->
@@ -32,7 +32,7 @@
                     // Create a new stylesheet link with our special no-cache route
                     var newLink = document.createElement('link');
                     newLink.rel = 'stylesheet';
-                    newLink.href = '{{ url_for('custom_static', filename='css/styles.css') }}';
+                    newLink.href = '/static-nocache/css/styles.css';
                     document.head.appendChild(newLink);
                 }
             }, 500);
@@ -271,13 +271,13 @@
         };
     </script>
     
-    <script src="{{ url_for('custom_static', filename='js/common.js') }}"></script>
-    <script src="{{ url_for('custom_static', filename='js/audio_status.js') }}"></script>
-    <script src="{{ url_for('custom_static', filename='js/global_ticker.js') }}"></script>
-    <script src="{{ url_for('custom_static', filename='js/volume_control.js') }}"></script>
-    <script src="{{ url_for('custom_static', filename='js/prayer_countdown.js') }}"></script>
-    <script src="{{ url_for('custom_static', filename='js/global_murattal_player.js') }}"></script>
-    <script src="{{ url_for('custom_static', filename='js/theme_switcher.js') }}"></script>
+    <script src="/static-nocache/js/common.js"></script>
+    <script src="/static-nocache/js/audio_status.js"></script>
+    <script src="/static-nocache/js/global_ticker.js"></script>
+    <script src="/static-nocache/js/volume_control.js"></script>
+    <script src="/static-nocache/js/prayer_countdown.js"></script>
+    <script src="/static-nocache/js/global_murattal_player.js"></script>
+    <script src="/static-nocache/js/theme_switcher.js"></script>
     {% block scripts %}{% endblock %}
     
     {% if request.endpoint != 'web_prayer_times' and request.endpoint != 'web_home' %}

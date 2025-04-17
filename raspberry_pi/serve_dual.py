@@ -24,6 +24,19 @@ logger = logging.getLogger('server')
 # Generate a build ID that changes on each server restart
 BUILD_ID = datetime.now().strftime('%Y%m%d%H%M%S')
 
+# Add cache control headers to all responses
+@app.after_request
+def add_cache_control(response):
+    """Add cache control headers to all responses"""
+    # Only apply to HTML, CSS, and JS responses
+    if response.mimetype in ['text/html', 'text/css', 'application/javascript']:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        response.headers['X-Build-ID'] = BUILD_ID
+        response.headers['X-Chrome-No-Cache'] = 'true'
+    return response
+
 # Custom static file handler to prevent Chrome caching issues
 @app.route('/static-nocache/<path:filename>')
 def custom_static(filename):
@@ -34,7 +47,7 @@ def custom_static(filename):
     cache_dir = os.path.join(os.path.dirname(__file__), 'static')
     response = send_from_directory(cache_dir, filename)
     
-    # Set cache control headers
+    # Set cache control headers (will be enhanced by after_request too)
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
