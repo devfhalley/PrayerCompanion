@@ -29,13 +29,30 @@ def setup_websocket(app, audio_player):
         app: Flask application
         audio_player: AudioPlayer instance for playing audio
     """
+    # Configure Flask-Sock with more permissive settings for Replit environment
     sock = Sock(app)
+    
+    # Start a background thread for sending periodic keepalive pings
+    keepalive_thread = threading.Thread(target=run_keepalive_pings, daemon=True)
+    keepalive_thread.start()
     
     @sock.route('/ws')
     def handle_websocket(ws):
         """Handle WebSocket connections."""
         client_id = id(ws)
         logger.info(f"New WebSocket client connected: {client_id}")
+        
+        # Send a welcome message to confirm connection
+        try:
+            welcome_message = {
+                'type': 'welcome',
+                'message': 'Connected to Prayer Alarm System',
+                'server_time': int(time.time() * 1000)
+            }
+            ws.send(json.dumps(welcome_message))
+            logger.info(f"Sent welcome message to client {client_id}")
+        except Exception as e:
+            logger.error(f"Error sending welcome message: {str(e)}")
         
         with clients_lock:
             # Store client with its ID as the key
@@ -44,17 +61,25 @@ def setup_websocket(app, audio_player):
         try:
             # Keep connection alive and process messages
             while True:
-                message = ws.receive()
+                # Use a timeout to prevent blocking indefinitely
+                # This helps detect disconnections more quickly
+                message = ws.receive(timeout=30)
+                
                 if message is None:
+                    logger.info(f"Client {client_id} connection closed gracefully")
                     break
                 
                 try:
                     process_message(message, audio_player)
                 except Exception as e:
                     logger.error(f"Error processing message: {str(e)}")
+                    # Continue the loop even if there's an error processing a message
+                    continue
         
         except Exception as e:
-            logger.error(f"WebSocket error: {str(e)}")
+            # Log the specific error type to help with debugging
+            error_type = type(e).__name__
+            logger.error(f"WebSocket error ({error_type}): {str(e)}")
         
         finally:
             with clients_lock:
@@ -62,6 +87,28 @@ def setup_websocket(app, audio_player):
                 if client_id in clients:
                     del clients[client_id]
             logger.info(f"WebSocket client disconnected: {client_id}")
+
+def run_keepalive_pings():
+    """Send periodic ping messages to all connected clients to keep connections alive."""
+    while True:
+        try:
+            # Sleep first to allow connections to be established
+            time.sleep(15)
+            
+            # Only send if we have active clients
+            with clients_lock:
+                if clients:
+                    ping_message = {
+                        'type': 'ping',
+                        'timestamp': int(time.time() * 1000),
+                        'message': 'keepalive'
+                    }
+                    broadcast_message(ping_message)
+                    logger.debug(f"Sent keepalive ping to {len(clients)} clients")
+        except Exception as e:
+            logger.error(f"Error in keepalive thread: {str(e)}")
+            # Sleep a bit longer on error to prevent rapid retries
+            time.sleep(5)
 
 def convert_webm_to_wav(webm_data):
     """Convert WebM audio data to WAV format.

@@ -45,30 +45,45 @@ document.addEventListener('DOMContentLoaded', function() {
     let mediaRecorder = null;
     let audioChunks = [];
     
-    // Initialize WebSocket connection
+    // Initialize WebSocket connection with our enhanced reliable client
     function initWebSocket() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        const wsUrl = getWebSocketUrl();
         
         statusMessage.textContent = 'Connecting...';
         
-        ws = new WebSocket(wsUrl);
+        // Use our enhanced ReliableWebSocket instead of the standard WebSocket
+        ws = new ReliableWebSocket(wsUrl, {
+            debug: true,
+            onOpen: function() {
+                statusMessage.textContent = 'Connected - Ready to talk';
+                pttButton.classList.add('ready');
+            },
+            onClose: function() {
+                statusMessage.textContent = 'Disconnected - Attempting to reconnect...';
+                pttButton.classList.remove('ready');
+            },
+            onError: function(error) {
+                console.error('WebSocket error:', error);
+                statusMessage.textContent = 'Connection error - Will retry automatically';
+            },
+            onReconnect: function(attempt, delay) {
+                statusMessage.textContent = `Connection lost. Reconnecting (attempt ${attempt})...`;
+            },
+            onMaxReconnectsExceeded: function() {
+                statusMessage.textContent = 'Could not reconnect after multiple attempts. Please refresh the page.';
+            },
+            // Add specific message handler for welcome messages
+            messageHandlers: {
+                'welcome': function(data) {
+                    console.log('Received welcome message from server:', data);
+                    statusMessage.textContent = 'Connected - Ready to talk';
+                    pttButton.classList.add('ready');
+                }
+            }
+        });
         
-        ws.onopen = function() {
-            statusMessage.textContent = 'Connected - Ready to talk';
-            pttButton.classList.add('ready');
-        };
-        
-        ws.onclose = function() {
-            statusMessage.textContent = 'Disconnected';
-            pttButton.classList.remove('ready');
-            setTimeout(initWebSocket, 3000); // Try to reconnect after 3 seconds
-        };
-        
-        ws.onerror = function(error) {
-            console.error('WebSocket error:', error);
-            statusMessage.textContent = 'Connection error';
-        };
+        // Store the WebSocket globally for the page
+        window.pushToTalkWs = ws;
     }
     
     // Request access to the microphone
@@ -111,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             
             mediaRecorder.onstop = function() {
-                if (audioChunks.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+                if (audioChunks.length > 0 && ws && ws.isConnected()) {
                     // Combine chunks and convert to base64
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
                     const reader = new FileReader();
@@ -160,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function startTalking() {
-        if (!ws || ws.readyState !== WebSocket.OPEN || !mediaRecorder) {
+        if (!ws || !ws.isConnected() || !mediaRecorder) {
             statusMessage.textContent = 'Cannot start talking - connection or microphone issue';
             return;
         }
@@ -194,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Send stop message
-        if (ws && ws.readyState === WebSocket.OPEN) {
+        if (ws && ws.isConnected()) {
             const message = {
                 type: 'ptt_stop'
             };

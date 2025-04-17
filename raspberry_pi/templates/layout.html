@@ -15,6 +15,35 @@
     <link rel="stylesheet" href="/static-nocache/css/styles.css">
     {% block styles %}{% endblock %}
     
+    <!-- Add WebSocket status indicator styles -->
+    <style>
+        .ws-status-indicator {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            z-index: 2000;
+            transition: opacity 0.3s ease;
+            opacity: 0.5;
+        }
+        
+        .ws-status-indicator:hover {
+            opacity: 1;
+        }
+        
+        .ws-status-indicator.connected {
+            background-color: rgba(47, 158, 68, 0.7);
+        }
+        
+        .ws-status-indicator.disconnected {
+            background-color: rgba(213, 66, 51, 0.7);
+        }
+    </style>
+    
     <!-- Fallback for styles.css -->
     <script>
         // Check if the main stylesheet failed to load
@@ -260,6 +289,11 @@
         </div>
     </footer>
     
+    <!-- WebSocket status indicator -->
+    <div class="ws-status-indicator disconnected" id="ws-status-indicator">
+        Disconnected
+    </div>
+    
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     
@@ -271,6 +305,10 @@
         };
     </script>
     
+    <!-- Enhanced WebSocket client for reliable connections -->
+    <script src="/static-nocache/js/websocket_client.js"></script>
+    
+    <!-- Core application scripts -->
     <script src="/static-nocache/js/common.js"></script>
     <script src="/static-nocache/js/audio_status.js"></script>
     <script src="/static-nocache/js/global_ticker.js"></script>

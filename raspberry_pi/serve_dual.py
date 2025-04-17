@@ -12,7 +12,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from app import app, start_schedulers
-from flask import send_from_directory, request
 
 # Set up logging
 logging.basicConfig(
@@ -20,46 +19,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('server')
-
-# Generate a build ID that changes on each server restart
-BUILD_ID = datetime.now().strftime('%Y%m%d%H%M%S')
-
-# Add cache control headers to all responses
-@app.after_request
-def add_cache_control(response):
-    """Add cache control headers to all responses"""
-    # Only apply to HTML, CSS, and JS responses
-    if response.mimetype in ['text/html', 'text/css', 'application/javascript']:
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        response.headers['X-Build-ID'] = BUILD_ID
-        response.headers['X-Chrome-No-Cache'] = 'true'
-    return response
-
-# Custom static file handler to prevent Chrome caching issues
-@app.route('/static-nocache/<path:filename>')
-def custom_static(filename):
-    """
-    Custom static file handler that adds a build ID parameter to force cache invalidation,
-    specifically fixing Chrome's ERR_TOO_MANY_RETRIES issue
-    """
-    cache_dir = os.path.join(os.path.dirname(__file__), 'static')
-    response = send_from_directory(cache_dir, filename)
-    
-    # Set cache control headers (will be enhanced by after_request too)
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    
-    # Add custom header to track build ID
-    response.headers['X-Build-ID'] = BUILD_ID
-    
-    # Add special headers for Chrome
-    response.headers['X-Chrome-No-Cache'] = 'true'
-    
-    logger.info(f"Serving {filename} with cache busting headers")
-    return response
 
 # Start schedulers
 def run_schedulers():

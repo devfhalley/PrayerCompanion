@@ -35,18 +35,54 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 
+# Generate a build ID that changes on each server restart
+BUILD_ID = datetime.now().strftime('%Y%m%d%H%M%S')
+
 # Add cache-control headers for static files to prevent Chrome ERR_TOO_MANY_RETRIES
 @app.after_request
 def add_cache_control(response):
-    # Only add headers for static files
-    if request.path.startswith('/static/'):
-        # Add cache control headers
+    # Apply to HTML, CSS, and JS responses
+    if response.mimetype in ['text/html', 'text/css', 'application/javascript']:
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
-        # Add a unique identifier to prevent Chrome from caching too aggressively
-        if 'text/css' in response.headers.get('Content-Type', ''):
-            app.logger.info(f"Adding cache headers to CSS file: {request.path}")
+        response.headers['X-Build-ID'] = BUILD_ID
+        response.headers['X-Chrome-No-Cache'] = 'true'
+    return response
+
+# Custom static file handler to prevent Chrome caching issues
+@app.route('/static-nocache/<path:filename>')
+def custom_static(filename):
+    """
+    Custom static file handler that adds cache busting headers,
+    specifically fixing Chrome's ERR_TOO_MANY_RETRIES issue
+    """
+    from flask import send_from_directory
+    
+    # Get the absolute path to the static directory
+    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+    
+    # Log the request and paths for debugging
+    logger.info(f"Requested static file: {filename}")
+    logger.info(f"Static directory: {static_dir}")
+    full_path = os.path.join(static_dir, filename)
+    logger.info(f"Full path: {full_path} - Exists: {os.path.exists(full_path)}")
+    
+    # Use send_from_directory instead of app.send_static_file for more control
+    response = send_from_directory(static_dir, filename)
+    
+    # Set cache control headers
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    
+    # Add custom header to track build ID
+    response.headers['X-Build-ID'] = BUILD_ID
+    
+    # Add special header for Chrome
+    response.headers['X-Chrome-No-Cache'] = 'true'
+    
+    logger.info(f"Serving {filename} with cache busting headers")
     return response
 
 # Initialize components
@@ -132,6 +168,12 @@ def home():
         </div>
         
         <div class="section">
+            <h2>Static Files Test</h2>
+            <p>Test CSS: <a href="/static-nocache/css/styles.css">styles.css</a></p>
+            <p>Test JS: <a href="/static-nocache/js/common.js">common.js</a></p>
+        </div>
+        
+        <div class="section">
             <h2>WebSocket</h2>
             <p>WebSocket endpoint for push-to-talk: <span class="api-path">/ws</span></p>
         </div>
@@ -143,6 +185,11 @@ def home():
     </body>
     </html>
     '''
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Simple health check endpoint."""
+    return jsonify({"status": "ok", "service": "Prayer Alarm System", "static_nocache_route": "active"})
 
 @app.route('/status', methods=['GET'])
 def get_status():
