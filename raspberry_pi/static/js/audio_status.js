@@ -97,8 +97,8 @@ async function checkAudioStatus() {
                 'Pragma': 'no-cache',
                 'Expires': '0'
             },
-            // Increase timeout for Replit environment
-            signal: AbortSignal.timeout(8000)
+            // Increase timeout for Replit environment - using 20 seconds instead of 8
+            signal: AbortSignal.timeout(20000)
         });
         
         if (!response.ok) {
@@ -117,6 +117,11 @@ async function checkAudioStatus() {
         }
     } catch (error) {
         console.error('Error checking audio status:', error);
+        
+        // Show user-friendly message for timeout errors
+        if (error.name === 'TimeoutError') {
+            console.warn('Request timed out - this is normal in the Replit environment and will be retried automatically');
+        }
         
         // Increment failure count
         audioStatusFailCount++;
