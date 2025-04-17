@@ -359,6 +359,13 @@ function getWebSocketUrl(socketType = 'ptt') {
 
 // Helper function to detect Replit environment
 function isReplitEnvironment() {
+    // Check if we're bypassing the Replit detection via server config
+    // These variables should be injected by the server when rendering the template
+    if (typeof bypassReplitCheck !== 'undefined' && bypassReplitCheck === true) {
+        console.log("Bypassing Replit environment detection via server config");
+        return false;
+    }
+    
     const host = window.location.host || '';
     const isReplit = host.includes('replit') || 
                     host.includes('.repl.co') || 
@@ -372,8 +379,15 @@ function isReplitEnvironment() {
     console.log("Environment detection: ", {
         host: host,
         hostname: window.location.hostname,
-        isReplit: isReplit
+        isReplit: isReplit,
+        bypassCheck: (typeof bypassReplitCheck !== 'undefined') ? bypassReplitCheck : "undefined"
     });
+    
+    // If force_enable_websockets is defined and true, return false regardless of environment
+    if (typeof forceEnableWebsockets !== 'undefined' && forceEnableWebsockets === true) {
+        console.log("WebSockets forcibly enabled via server config");
+        return false;
+    }
     
     // Properly detect Replit environment and disable WebSockets to avoid errors
     // WebSockets will not work reliably in Replit preview environment

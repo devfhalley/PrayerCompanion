@@ -413,8 +413,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize everything
     async function initialize() {
-        // Check if we're in the Replit environment first
-        if (isReplitEnvironment()) {
+        // Pass server config to client-side
+        const forceEnableWebsockets = {{ force_enable_websockets|default(false)|tojson }};
+        const bypassReplitCheck = {{ bypass_replit_check|default(false)|tojson }};
+        
+        // Make these variables global
+        window.forceEnableWebsockets = forceEnableWebsockets;
+        window.bypassReplitCheck = bypassReplitCheck;
+        
+        console.log("WebSocket configuration from server:", {
+            forceEnableWebsockets: forceEnableWebsockets,
+            bypassReplitCheck: bypassReplitCheck
+        });
+        
+        // Check if we're in the Replit environment and WebSockets aren't forced
+        if (isReplitEnvironment() && !forceEnableWebsockets) {
             // In Replit environment, display the notice
             const replitNotice = document.getElementById('replit-notice');
             if (replitNotice) {

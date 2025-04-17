@@ -27,11 +27,11 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd raspberry_pi && python serve_dual.py"
+args = "cd raspberry_pi && ENABLE_WEBSOCKETS=true BYPASS_REPLIT_CHECK=true python3 -c \"import os; print('WebSocket environment variables:', os.environ.get('ENABLE_WEBSOCKETS'), os.environ.get('BYPASS_REPLIT_CHECK'))\" && ENABLE_WEBSOCKETS=true BYPASS_REPLIT_CHECK=true python serve_dual.py"
 waitForPort = 5000
 
 [deployment]
-run = ["sh", "-c", "cd raspberry_pi && python serve_dual.py"]
+run = ["sh", "-c", "cd raspberry_pi && ENABLE_WEBSOCKETS=true BYPASS_REPLIT_CHECK=true python3 -c \"import os; print('WebSocket environment variables:', os.environ.get('ENABLE_WEBSOCKETS'), os.environ.get('BYPASS_REPLIT_CHECK'))\" && ENABLE_WEBSOCKETS=true BYPASS_REPLIT_CHECK=true python serve_dual.py"]
 
 [[ports]]
 localPort = 5000

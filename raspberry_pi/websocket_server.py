@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Using dictionaries to store clients with their IDs as keys for better tracking
 ptt_clients = {}  # Push-to-talk clients
 audio_clients = {}  # Audio status clients
+clients = {}       # Legacy clients dictionary for backward compatibility
 ptt_clients_lock = threading.Lock()
 audio_clients_lock = threading.Lock()
 
@@ -33,6 +34,29 @@ def setup_websocket(app, audio_player):
         app: Flask application
         audio_player: AudioPlayer instance for playing audio
     """
+    # Check if WebSockets are forcibly enabled via environment variables
+    enable_websockets = os.environ.get('ENABLE_WEBSOCKETS', 'false').lower() == 'true'
+    bypass_replit_check = os.environ.get('BYPASS_REPLIT_CHECK', 'false').lower() == 'true'
+    
+    # Update app config with the environment settings
+    app.config['ENABLE_WEBSOCKETS'] = enable_websockets
+    app.config['BYPASS_REPLIT_CHECK'] = bypass_replit_check
+    
+    logger.info(f"WebSocket environment settings: ENABLE_WEBSOCKETS={enable_websockets}, BYPASS_REPLIT_CHECK={bypass_replit_check}")
+    
+    if enable_websockets:
+        app.logger.info("WebSockets forcibly enabled via environment variables")
+    
+    if bypass_replit_check:
+        app.logger.info("Replit environment check bypassed via environment variables")
+    
+    # Make these available to templates
+    @app.context_processor
+    def inject_websocket_config():
+        return {
+            'force_enable_websockets': enable_websockets,
+            'bypass_replit_check': bypass_replit_check
+        }
     # Configure Flask-Sock with more permissive settings for Replit environment
     sock = Sock(app)
     
