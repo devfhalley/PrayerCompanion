@@ -1,14 +1,23 @@
 /* Main styles for Prayer Alarm Web Interface */
 :root {
+    /* Core color palette (will be overridden by adaptive colors) */
     --primary-color: #4CAF50;
     --secondary-color: #2196F3;
     --accent-color: #FF9800;
     --error-color: #F44336;
+    
+    /* Base UI colors */
     --text-color: #333;
     --light-bg: #f5f5f5;
     --card-bg: #fff;
     --divider-color: #e0e0e0;
     --shadow-color: rgba(0, 0, 0, 0.15);
+    --theme-toggle-bg: rgba(0, 0, 0, 0.2);
+    --theme-toggle-color: #fff;
+    
+    /* Time-adaptive elements */
+    --header-bg: linear-gradient(135deg, var(--primary-color), #2c6c3b);
+    --card-highlight: rgba(76, 175, 80, 0.1);
 }
 
 /* Dark theme variables */
@@ -22,6 +31,8 @@
     --card-bg: #3d3d3d;
     --divider-color: #555;
     --shadow-color: rgba(0, 0, 0, 0.3);
+    --theme-toggle-bg: rgba(255, 255, 255, 0.2);
+    --theme-toggle-color: #f5f5f5;
 }
 
 body {
@@ -41,10 +52,12 @@ body {
 }
 
 header {
-    background-color: var(--primary-color);
-    color: white;
+    background: var(--header-bg);
+    color: white !important; /* Enforce white text in all themes */
     padding: 10px 0;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 5px var(--shadow-color);
+    position: relative;
+    z-index: 100; /* Ensure header is above other elements */
 }
 
 header .container {
@@ -56,6 +69,8 @@ header .container {
 .logo {
     font-size: 24px;
     font-weight: bold;
+    color: white !important; /* Ensure logo text is always white in all themes */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); /* Add subtle shadow for better visibility */
 }
 
 nav ul {
@@ -70,11 +85,12 @@ nav ul li {
 }
 
 nav ul li a {
-    color: white;
+    color: white !important; /* Ensure navigation links are always white */
     text-decoration: none;
     padding: 5px 10px;
     border-radius: 3px;
     transition: background-color 0.3s;
+    font-weight: 500; /* Slightly bolder for better visibility */
 }
 
 nav ul li a:hover {
@@ -469,7 +485,7 @@ table th {
 }
 
 .murattal-player-header {
-    background: linear-gradient(135deg, var(--primary-color), #2c6c3b);
+    background: var(--header-bg);
     color: white;
     padding: 12px 20px;
 }
@@ -765,7 +781,7 @@ body.murattal-playing .global-ticker {
     text-align: center;
     margin: 20px 0;
     padding: 20px;
-    background: linear-gradient(135deg, #2b8a3e, #2c6c3b);
+    background: var(--header-bg);
     border-radius: 10px;
     color: white;
     box-shadow: 0 4px 15px var(--shadow-color);
@@ -1068,7 +1084,7 @@ button:disabled {
 }
 
 .playlist-header {
-    background: linear-gradient(135deg, var(--primary-color), #2c6c3b);
+    background: var(--header-bg);
     color: white;
     padding: 10px 15px;
     font-weight: bold;

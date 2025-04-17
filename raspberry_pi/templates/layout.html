@@ -146,16 +146,17 @@
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background-color: var(--card-bg);
-            color: var(--text-color);
+            background-color: var(--theme-toggle-bg);
+            color: var(--theme-toggle-color);
             box-shadow: 0 2px 5px var(--shadow-color);
-            border: none;
+            border: 1px solid rgba(0,0,0,0.1);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 1100;
             transition: background-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
+            outline: none;
         }
         
         .theme-toggle:hover {
@@ -316,6 +317,7 @@
     <script src="/static-nocache/js/prayer_countdown.js"></script>
     <script src="/static-nocache/js/global_murattal_player.js"></script>
     <script src="/static-nocache/js/theme_switcher.js"></script>
+    <script src="/static-nocache/js/adaptive_colors.js"></script>
     {% block scripts %}{% endblock %}
     
     {% if request.endpoint != 'web_prayer_times' and request.endpoint != 'web_home' %}
