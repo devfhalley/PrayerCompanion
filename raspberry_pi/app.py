@@ -50,6 +50,12 @@ def add_cache_control(response):
         response.headers['X-Chrome-No-Cache'] = 'true'
     return response
 
+# Enable direct access to static files via the normal route for debugging
+@app.route('/static/<path:filename>')
+def normal_static(filename):
+    """Standard static files route"""
+    return app.send_static_file(filename)
+
 # Custom static file handler to prevent Chrome caching issues
 @app.route('/static-nocache/<path:filename>')
 def custom_static(filename):
@@ -57,48 +63,61 @@ def custom_static(filename):
     Custom static file handler that adds cache busting headers,
     specifically fixing Chrome's ERR_TOO_MANY_RETRIES issue
     """
-    from flask import send_from_directory
+    from flask import send_from_directory, Response
     
     # Get the absolute path to the static directory
     static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
     
     # Log the request and paths for debugging
     logger.info(f"Requested static file: {filename}")
-    logger.info(f"Static directory: {static_dir}")
     full_path = os.path.join(static_dir, filename)
-    logger.info(f"Full path: {full_path} - Exists: {os.path.exists(full_path)}")
+    file_exists = os.path.exists(full_path)
+    logger.info(f"Full path: {full_path} - Exists: {file_exists}")
     
-    # Use send_from_directory instead of app.send_static_file for more control
-    response = send_from_directory(static_dir, filename)
+    if not file_exists:
+        logger.error(f"File not found: {full_path}")
+        return Response("File not found", status=404, mimetype="text/plain")
     
-    # For CSS and JS files, use a different caching strategy to prevent ERR_TOO_MANY_RETRIES
-    if filename.endswith('.css') or filename.endswith('.js'):
-        # Use a longer cache time but with versioned content via ETag
-        response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 hour
-        etag_value = f'"{BUILD_ID}-{os.path.getmtime(full_path)}"'
-        response.headers['ETag'] = etag_value
-        
-        # Set proper content type
+    try:
+        # Directly read and serve the file content with appropriate MIME type
         if filename.endswith('.css'):
-            response.headers['Content-Type'] = 'text/css; charset=utf-8'
+            with open(full_path, 'r') as f:
+                content = f.read()
+            mimetype = 'text/css'
+            logger.info(f"Serving CSS file directly: {filename}")
+            response = Response(content, mimetype=mimetype)
+            
         elif filename.endswith('.js'):
-            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
-    else:
-        # For other files use no-cache approach
+            with open(full_path, 'r') as f:
+                content = f.read()
+            mimetype = 'application/javascript'
+            logger.info(f"Serving JavaScript file directly: {filename}")
+            response = Response(content, mimetype=mimetype)
+            
+        else:
+            # For other files, use send_from_directory
+            response = send_from_directory(static_dir, filename)
+        
+        # Apply aggressive no-cache headers for Replit environment
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
-    
-    # Add custom header to track build ID
-    response.headers['X-Build-ID'] = BUILD_ID
-    
-    # Add special header for Chrome
-    response.headers['X-Chrome-No-Cache'] = 'true'
-    
-    # Add CORS headers to avoid potential issues
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    
-    logger.info(f"Serving {filename} with optimized caching headers")
+        
+        # Add versioning with build ID
+        response.headers['X-Build-ID'] = BUILD_ID
+        
+        # Add CORS headers
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        
+        # Add Chrome specific headers
+        response.headers['X-Chrome-No-Cache'] = 'true'
+        
+        logger.info(f"Successfully serving {filename} with no-cache headers")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error serving static file {filename}: {str(e)}")
+        return Response(f"Error serving file: {str(e)}", status=500, mimetype="text/plain")
     return response
 
 # Initialize components
