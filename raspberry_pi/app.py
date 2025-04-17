@@ -35,6 +35,20 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 
+# Add cache-control headers for static files to prevent Chrome ERR_TOO_MANY_RETRIES
+@app.after_request
+def add_cache_control(response):
+    # Only add headers for static files
+    if request.path.startswith('/static/'):
+        # Add cache control headers
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        # Add a unique identifier to prevent Chrome from caching too aggressively
+        if 'text/css' in response.headers.get('Content-Type', ''):
+            app.logger.info(f"Adding cache headers to CSS file: {request.path}")
+    return response
+
 # Initialize components
 audio_player = AudioPlayer()
 alarm_scheduler = AlarmScheduler(audio_player)
