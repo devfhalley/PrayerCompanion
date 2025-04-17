@@ -20,10 +20,7 @@ from alarm_scheduler import AlarmScheduler
 from audio_player import AudioPlayer
 from config import Config
 from websocket_server import setup_websocket, broadcast_message
-
-# Read environment variables for WebSocket configuration
-ENABLE_WEBSOCKETS = os.environ.get('ENABLE_WEBSOCKETS', 'false').lower() == 'true'
-BYPASS_REPLIT_CHECK = os.environ.get('BYPASS_REPLIT_CHECK', 'false').lower() == 'true'
+from config import Config
 
 # Setup logging
 logging.basicConfig(
@@ -40,16 +37,6 @@ app = Flask(__name__)
 
 # Generate a build ID that changes on each server restart
 BUILD_ID = datetime.now().strftime('%Y%m%d%H%M%S')
-
-# Add WebSocket environment settings to all templates
-@app.context_processor
-def inject_websocket_config():
-    """Inject websocket configuration into all templates."""
-    logger.info(f"Injecting WebSocket config into templates: ENABLE_WEBSOCKETS={ENABLE_WEBSOCKETS}, BYPASS_REPLIT_CHECK={BYPASS_REPLIT_CHECK}")
-    return {
-        'force_enable_websockets': ENABLE_WEBSOCKETS,
-        'bypass_replit_check': BYPASS_REPLIT_CHECK
-    }
 
 # Add cache-control headers for static files to prevent Chrome ERR_TOO_MANY_RETRIES
 @app.after_request

@@ -11,27 +11,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-
-# Load environment variables first
-try:
-    from load_env import load_env_vars
-    load_env_vars()
-except ImportError:
-    # Try with full path
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from raspberry_pi.load_env import load_env_vars
-    load_env_vars()
-
-# Now import the app
 from app import app, start_schedulers
-
-# Environment variables to control WebSocket behavior
-ENABLE_WEBSOCKETS = os.environ.get('ENABLE_WEBSOCKETS', 'false').lower() == 'true'
-BYPASS_REPLIT_CHECK = os.environ.get('BYPASS_REPLIT_CHECK', 'false').lower() == 'true'
-
-# Set these values in the Flask app config
-app.config['ENABLE_WEBSOCKETS'] = ENABLE_WEBSOCKETS
-app.config['BYPASS_REPLIT_CHECK'] = BYPASS_REPLIT_CHECK
 
 # Set up logging
 logging.basicConfig(
@@ -39,9 +19,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('server')
-
-# Log environment settings
-logger.info(f"WebSocket environment settings: ENABLE_WEBSOCKETS={ENABLE_WEBSOCKETS}, BYPASS_REPLIT_CHECK={BYPASS_REPLIT_CHECK}")
 
 # Start schedulers
 def run_schedulers():
