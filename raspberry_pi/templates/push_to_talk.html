@@ -59,7 +59,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize WebSocket connection with our enhanced reliable client
     function initWebSocket() {
-        const wsUrl = getWebSocketUrl();
+        // Use the specific PTT WebSocket URL
+        const wsUrl = getWebSocketUrl('ptt');
         
         statusMessage.textContent = 'Connecting...';
         
@@ -69,20 +70,41 @@ document.addEventListener('DOMContentLoaded', function() {
             onOpen: function() {
                 statusMessage.textContent = 'Connected - Ready to talk';
                 pttButton.classList.add('ready');
+                
+                // Add a PTT-specific class for styling
+                document.querySelector('.push-to-talk').classList.add('ptt-connected');
+                
+                // Add a visible status indicator
+                updateConnectionStatus('connected');
             },
             onClose: function() {
                 statusMessage.textContent = 'Disconnected - Attempting to reconnect...';
                 pttButton.classList.remove('ready');
+                
+                // Remove the connected class
+                document.querySelector('.push-to-talk').classList.remove('ptt-connected');
+                
+                // Update the status indicator
+                updateConnectionStatus('disconnected');
             },
             onError: function(error) {
                 console.error('WebSocket error:', error);
                 statusMessage.textContent = 'Connection error - Will retry automatically';
+                
+                // Update the status indicator
+                updateConnectionStatus('error');
             },
             onReconnect: function(attempt, delay) {
                 statusMessage.textContent = `Connection lost. Reconnecting (attempt ${attempt})...`;
+                
+                // Update the status indicator
+                updateConnectionStatus('reconnecting');
             },
             onMaxReconnectsExceeded: function() {
                 statusMessage.textContent = 'Could not reconnect after multiple attempts. Please refresh the page.';
+                
+                // Update the status indicator
+                updateConnectionStatus('failed');
             },
             // Add specific message handler for welcome messages
             messageHandlers: {
@@ -90,12 +112,172 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('Received welcome message from server:', data);
                     statusMessage.textContent = 'Connected - Ready to talk';
                     pttButton.classList.add('ready');
+                    
+                    // Check if this is the correct socket type
+                    if (data.socket_type === 'ptt') {
+                        console.log('Connected to PTT WebSocket successfully');
+                    } else {
+                        console.warn('Connected to WebSocket but socket_type is not "ptt":', data.socket_type);
+                    }
+                    
+                    // Update the status indicator
+                    updateConnectionStatus('connected');
                 }
             }
         });
         
         // Store the WebSocket globally for the page
         window.pushToTalkWs = ws;
+        window.pttWs = ws; // Also store for consistency with our new naming
+        
+        // Also establish audio status WebSocket connection for feedback
+        initAudioStatusWebSocket();
+    }
+    
+    // Set up a separate WebSocket for audio status updates
+    function initAudioStatusWebSocket() {
+        const audioWsUrl = getWebSocketUrl('audio');
+        
+        // Create audio status WebSocket connection
+        const audioWs = new ReliableWebSocket(audioWsUrl, {
+            debug: true,
+            onOpen: function() {
+                console.log('Audio Status WebSocket connected');
+                
+                // Add an indicator for audio status connection
+                const audioStatusDiv = document.createElement('div');
+                audioStatusDiv.className = 'audio-status-indicator connected';
+                audioStatusDiv.id = 'audio-status-indicator';
+                audioStatusDiv.textContent = 'Audio Status: Connected';
+                
+                // Add after the main status message
+                if (statusMessage.parentNode) {
+                    statusMessage.parentNode.insertBefore(audioStatusDiv, statusMessage.nextSibling);
+                }
+            },
+            onClose: function() {
+                console.log('Audio Status WebSocket disconnected');
+                
+                // Update the indicator
+                const indicator = document.getElementById('audio-status-indicator');
+                if (indicator) {
+                    indicator.className = 'audio-status-indicator disconnected';
+                    indicator.textContent = 'Audio Status: Disconnected';
+                }
+            },
+            // Add specific message handlers for audio status
+            messageHandlers: {
+                'audio_status': function(data) {
+                    console.log('Received audio status update:', data);
+                    
+                    // Update UI to show current audio playing status
+                    updateAudioStatusDisplay(data);
+                },
+                'audio_status_change': function(data) {
+                    console.log('Audio status changed:', data);
+                    
+                    // Update UI to show current audio playing status
+                    updateAudioStatusDisplay(data.status);
+                }
+            }
+        });
+        
+        // Store globally
+        window.audioWs = audioWs;
+    }
+    
+    // Helper function to update the connection status indicator
+    function updateConnectionStatus(status) {
+        // Check if we already have a status indicator
+        let statusIndicator = document.getElementById('connection-status-indicator');
+        
+        // If not, create one
+        if (!statusIndicator) {
+            statusIndicator = document.createElement('div');
+            statusIndicator.id = 'connection-status-indicator';
+            statusIndicator.className = 'connection-status-indicator';
+            
+            // Add to the page
+            const container = document.querySelector('.push-to-talk');
+            if (container) {
+                container.appendChild(statusIndicator);
+            }
+        }
+        
+        // Update the indicator based on status
+        statusIndicator.className = `connection-status-indicator ${status}`;
+        
+        switch (status) {
+            case 'connected':
+                statusIndicator.textContent = 'PTT Connection: ✓ Connected';
+                break;
+            case 'disconnected':
+                statusIndicator.textContent = 'PTT Connection: ✗ Disconnected';
+                break;
+            case 'error':
+                statusIndicator.textContent = 'PTT Connection: ⚠ Error';
+                break;
+            case 'reconnecting':
+                statusIndicator.textContent = 'PTT Connection: ↻ Reconnecting...';
+                break;
+            case 'failed':
+                statusIndicator.textContent = 'PTT Connection: ✗ Failed';
+                break;
+            case 'disabled':
+                statusIndicator.textContent = 'PTT Connection: Disabled in Replit';
+                break;
+            default:
+                statusIndicator.textContent = `PTT Connection: ${status}`;
+        }
+    }
+    
+    // Helper function to update the audio status display
+    function updateAudioStatusDisplay(status) {
+        // Check if we have an audio playing indicator
+        let audioPlayingIndicator = document.getElementById('audio-playing-indicator');
+        
+        // If not, create one
+        if (!audioPlayingIndicator) {
+            audioPlayingIndicator = document.createElement('div');
+            audioPlayingIndicator.id = 'audio-playing-indicator';
+            audioPlayingIndicator.className = 'audio-playing-indicator';
+            
+            // Add to the page
+            const container = document.querySelector('.push-to-talk');
+            if (container) {
+                container.appendChild(audioPlayingIndicator);
+            }
+        }
+        
+        // Update based on status
+        if (status.is_playing) {
+            audioPlayingIndicator.className = 'audio-playing-indicator playing';
+            
+            // Get the audio type information if available
+            let audioType = 'unknown';
+            if (status.audio_type) {
+                audioType = status.audio_type;
+            } else if (status.current_audio && status.current_audio[0]) {
+                audioType = status.current_audio[0];
+            }
+            
+            // Format to friendly name
+            const audioNames = {
+                'file': 'Audio file',
+                'adhan': 'Adhan',
+                'pre_adhan': 'Pre-adhan',
+                'tahrim': 'Tahrim',
+                'alarm': 'Alarm',
+                'push_to_talk': 'Push-to-talk',
+                'murattal': 'Murattal'
+            };
+            
+            const friendlyName = audioNames[audioType] || 'Audio';
+            audioPlayingIndicator.textContent = `${friendlyName} is currently playing`;
+        } else {
+            audioPlayingIndicator.className = 'audio-playing-indicator not-playing';
+            audioPlayingIndicator.textContent = 'No audio currently playing';
+        }
     }
     
     // Request access to the microphone
@@ -232,7 +414,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize everything
     async function initialize() {
         // Check if we're in the Replit environment first
-        if (false) { // Temporarily disabled the check to enable WebSockets for testing
+        if (isReplitEnvironment()) {
             // In Replit environment, display the notice
             const replitNotice = document.getElementById('replit-notice');
             if (replitNotice) {
@@ -243,6 +425,32 @@ document.addEventListener('DOMContentLoaded', function() {
             pttButton.classList.add('disabled');
             pttButton.style.backgroundColor = '#ccc';
             pttButton.style.cursor = 'not-allowed';
+            
+            // Add status indicators for visual feedback in Replit environment
+            updateConnectionStatus('disabled');
+            
+            // Create the audio status indicator even in Replit
+            const audioStatusDiv = document.createElement('div');
+            audioStatusDiv.className = 'audio-status-indicator disabled';
+            audioStatusDiv.id = 'audio-status-indicator';
+            audioStatusDiv.textContent = 'Audio Status: Disabled in Replit';
+            
+            // Add after the main status message
+            if (statusMessage.parentNode) {
+                statusMessage.parentNode.insertBefore(audioStatusDiv, statusMessage.nextSibling);
+            }
+            
+            // Add a placeholder for audio playing indicator
+            const audioPlayingIndicator = document.createElement('div');
+            audioPlayingIndicator.id = 'audio-playing-indicator';
+            audioPlayingIndicator.className = 'audio-playing-indicator not-playing';
+            audioPlayingIndicator.textContent = 'Audio status unavailable in Replit';
+            
+            // Add to the page
+            const container = document.querySelector('.push-to-talk');
+            if (container) {
+                container.appendChild(audioPlayingIndicator);
+            }
             
             // Log the information to console
             console.log("Push-to-Talk is disabled in Replit environment due to WebSocket limitations");
@@ -265,6 +473,115 @@ document.addEventListener('DOMContentLoaded', function() {
         #ptt-button.ready { background-color: var(--primary-color); }
         #ptt-button.active { transform: scale(0.95); background-color: var(--error-color); }
         #status-message { margin-bottom: 20px; }
+        
+        /* Connection status indicators */
+        .connection-status-indicator,
+        .audio-status-indicator,
+        .audio-playing-indicator {
+            padding: 8px 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .connection-status-indicator::before,
+        .audio-status-indicator::before,
+        .audio-playing-indicator::before {
+            content: '';
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        /* PTT Connection status */
+        .connection-status-indicator.connected {
+            background-color: rgba(46, 204, 113, 0.15);
+            color: #27ae60;
+        }
+        .connection-status-indicator.connected::before {
+            background-color: #27ae60;
+        }
+        
+        .connection-status-indicator.disconnected,
+        .connection-status-indicator.failed {
+            background-color: rgba(231, 76, 60, 0.15);
+            color: #c0392b;
+        }
+        .connection-status-indicator.disconnected::before,
+        .connection-status-indicator.failed::before {
+            background-color: #c0392b;
+        }
+        
+        .connection-status-indicator.error,
+        .connection-status-indicator.reconnecting {
+            background-color: rgba(241, 196, 15, 0.15);
+            color: #f39c12;
+        }
+        .connection-status-indicator.error::before,
+        .connection-status-indicator.reconnecting::before {
+            background-color: #f39c12;
+        }
+        
+        /* Audio status indicators */
+        .audio-status-indicator.connected {
+            background-color: rgba(52, 152, 219, 0.15);
+            color: #2980b9;
+        }
+        .audio-status-indicator.connected::before {
+            background-color: #2980b9;
+        }
+        
+        .audio-status-indicator.disconnected {
+            background-color: rgba(155, 89, 182, 0.15);
+            color: #8e44ad;
+        }
+        .audio-status-indicator.disconnected::before {
+            background-color: #8e44ad;
+        }
+        
+        /* Disabled state for Replit environment */
+        .connection-status-indicator.disabled,
+        .audio-status-indicator.disabled {
+            background-color: rgba(189, 195, 199, 0.15);
+            color: #7f8c8d;
+        }
+        .connection-status-indicator.disabled::before,
+        .audio-status-indicator.disabled::before {
+            background-color: #bdc3c7;
+        }
+        
+        /* Audio playing indicators */
+        .audio-playing-indicator.playing {
+            background-color: rgba(46, 204, 113, 0.15);
+            color: #27ae60;
+        }
+        .audio-playing-indicator.playing::before {
+            background-color: #27ae60;
+        }
+        
+        .audio-playing-indicator.not-playing {
+            background-color: rgba(189, 195, 199, 0.15);
+            color: #7f8c8d;
+        }
+        .audio-playing-indicator.not-playing::before {
+            background-color: #7f8c8d;
+        }
+        
+        /* Animation for reconnecting status */
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        .connection-status-indicator.reconnecting::before {
+            animation: pulse 1.5s infinite;
+        }
     `;
     document.head.appendChild(style);
 });
