@@ -32,6 +32,15 @@ def setup_websocket(app, audio_player):
     # Configure Flask-Sock with more permissive settings for Replit environment
     sock = Sock(app)
     
+    # Set WebSocket options for better reliability in Replit environment
+    sock.max_message_size = 16 * 1024 * 1024  # 16MB max message size
+    app.config['SOCK_SERVER_OPTIONS'] = {
+        'ping_interval': 25,  # Send ping frames every 25 seconds
+        'ping_timeout': 10,   # Wait 10 seconds for pong response
+        'max_message_size': 16 * 1024 * 1024,  # 16MB max message size
+        'heartbeat_interval': 30  # Heartbeat every 30 seconds
+    }
+    
     # Start a background thread for sending periodic keepalive pings
     keepalive_thread = threading.Thread(target=run_keepalive_pings, daemon=True)
     keepalive_thread.start()

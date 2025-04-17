@@ -295,7 +295,15 @@ class ReliableWebSocket {
 function getWebSocketUrl(path = '/ws') {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    return `${protocol}//${host}${path}`;
+    
+    // Check if we're in a Replit environment and use the appropriate URL format
+    if (host.includes('replit.dev') || host.includes('replit.app')) {
+        // For Replit, use a relative path to avoid CORS and routing issues
+        return `${protocol}//${host}${path}`;
+    } else {
+        // For regular environments, use standard WebSocket URL
+        return `${protocol}//${host}${path}`;
+    }
 }
 
 // Setup global WebSocket connection

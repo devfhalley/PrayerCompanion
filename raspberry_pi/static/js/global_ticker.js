@@ -319,13 +319,20 @@ function setupGlobalWebSocket() {
         
         // Create new connection with explicit error handling
         try {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const host = window.location.host;
-            // Fallback to IP if needed
-            const wsUrl = `${protocol}//${host}/ws`;
-            console.log('Setting up global WebSocket connection to:', wsUrl);
-            
-            tickerState.wsConnection = new WebSocket(wsUrl);
+            // Use the WebSocket URL helper function which handles different environments
+            if (typeof getWebSocketUrl === 'function') {
+                // If websocket_client.js is loaded, use its helper function
+                const wsUrl = getWebSocketUrl();
+                console.log('Setting up global WebSocket connection to:', wsUrl);
+                tickerState.wsConnection = new WebSocket(wsUrl);
+            } else {
+                // Fallback to direct URL construction if the helper isn't available
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.host;
+                const wsUrl = `${protocol}//${host}/ws`;
+                console.log('Setting up global WebSocket connection to:', wsUrl);
+                tickerState.wsConnection = new WebSocket(wsUrl);
+            }
             
             // Handle connection was established
             tickerState.wsConnection.onopen = function() {
