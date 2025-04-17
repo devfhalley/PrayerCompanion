@@ -2,10 +2,16 @@
  * Enhanced WebSocket Client
  * This script provides a robust WebSocket client implementation with automatic reconnection,
  * heartbeat mechanism, and error handling for Replit environment.
+ * 
+ * Note: WebSockets are disabled in Replit environment due to compatibility issues.
+ * Full functionality available when deployed to a real server.
  */
 
 class ReliableWebSocket {
     constructor(url, options = {}) {
+        // Check if we're in Replit environment - completely disable WebSockets if so
+        this.inReplitEnvironment = window.location.host.includes('replit');
+        
         this.url = url;
         this.options = Object.assign({
             debug: false,
@@ -28,11 +34,25 @@ class ReliableWebSocket {
         this.connectionTimer = null;
         this.manualClose = false;
         
+        // In Replit, we completely disable WebSockets to avoid errors
+        if (this.inReplitEnvironment) {
+            console.log('Replit environment detected - WebSockets are disabled');
+            console.info('Real-time updates via WebSockets are only available when deployed');
+        }
+        
         this.connect();
     }
     
     // Connect to WebSocket server
     connect() {
+        // In Replit environment, don't attempt to connect at all
+        if (this.inReplitEnvironment) {
+            if (this.options.debug) {
+                console.log('WebSocket: Connection skipped in Replit environment');
+            }
+            return;
+        }
+        
         // Clear any existing connection
         this.cleanup();
         
@@ -47,7 +67,7 @@ class ReliableWebSocket {
             
             // Setup connection timeout
             this.connectionTimer = setTimeout(() => {
-                if (this.ws.readyState !== WebSocket.OPEN) {
+                if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
                     if (this.options.debug) {
                         console.warn('WebSocket: Connection timeout, closing and retrying');
                     }
@@ -255,6 +275,14 @@ class ReliableWebSocket {
     
     // Attempt to reconnect with backoff
     reconnect() {
+        // In Replit environment, don't attempt to reconnect at all
+        if (this.inReplitEnvironment) {
+            if (this.options.debug) {
+                console.log('WebSocket: Reconnection skipped in Replit environment');
+            }
+            return;
+        }
+        
         this.reconnectAttempts++;
         
         if (this.reconnectAttempts > this.options.maxReconnectAttempts) {
@@ -293,24 +321,65 @@ class ReliableWebSocket {
 
 // Helper function to create the correct WebSocket URL based on window location
 function getWebSocketUrl(path = '/ws') {
+    // Check if we're in Replit environment - if so, return null to prevent connection attempts
+    const inReplitEnv = isReplitEnvironment();
+    if (inReplitEnv) {
+        console.info('In Replit environment - WebSockets disabled');
+        return null;
+    }
+    
+    // Only proceed with URL construction for non-Replit environments
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     
-    // Check if we're in a Replit environment and use the appropriate URL format
-    if (host.includes('replit.dev') || host.includes('replit.app')) {
-        // For Replit, use a relative path to avoid CORS and routing issues
-        return `${protocol}//${host}${path}`;
-    } else {
-        // For regular environments, use standard WebSocket URL
-        return `${protocol}//${host}${path}`;
-    }
+    // Return standard WebSocket URL
+    return `${protocol}//${host}${path}`;
+}
+
+// Helper function to detect Replit environment
+function isReplitEnvironment() {
+    const host = window.location.host || '';
+    return host.includes('replit') || 
+           host.includes('.repl.co') || 
+           host.includes('.repl.dev') || 
+           host.includes('.repl.run') ||
+           window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/); // IP address (Replit internal routing)
 }
 
 // Setup global WebSocket connection
 let globalWs = null;
 
 function setupGlobalWebSocket() {
+    // Check if we're in Replit environment - don't even attempt to create WebSockets if we are
+    const inReplitEnvironment = isReplitEnvironment();
+    if (inReplitEnvironment) {
+        console.log('Replit environment detected - WebSockets are disabled');
+        console.info('Real-time updates via WebSockets are only available when deployed');
+        
+        // Update UI elements to show disconnected status in Replit
+        document.querySelectorAll('.ws-status-indicator').forEach(el => {
+            el.classList.remove('connected');
+            el.classList.add('disconnected');
+            if (el.textContent) {
+                el.textContent = 'Disabled in Replit';
+            }
+        });
+        
+        // Set a global flag to indicate WebSockets are disabled
+        window.webSocketsDisabled = true;
+        
+        return null;
+    }
+    
+    // Only proceed with WebSocket creation in non-Replit environments
     const wsUrl = getWebSocketUrl();
+    
+    // Double-check that we have a valid WebSocket URL
+    if (!wsUrl) {
+        console.warn('No valid WebSocket URL available - skipping WebSocket connection');
+        return null;
+    }
+    
     console.log('Setting up global WebSocket connection to:', wsUrl);
     
     globalWs = new ReliableWebSocket(wsUrl, {

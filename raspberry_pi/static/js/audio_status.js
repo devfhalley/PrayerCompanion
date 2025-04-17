@@ -116,11 +116,21 @@ async function checkAudioStatus() {
             hideAudioPlaying();
         }
     } catch (error) {
-        console.error('Error checking audio status:', error);
+        // Check if we're in Replit environment
+        const inReplitEnv = window.location.host.includes('replit');
+        
+        // Silently fail with minimal logging in Replit environment
+        if (inReplitEnv) {
+            // Just log with minimal details
+            console.warn('Audio status check failed - normal in Replit environment');
+        } else {
+            // Full error logging in regular environment
+            console.error('Error checking audio status:', error);
+        }
         
         // Show user-friendly message for timeout errors
         if (error.name === 'TimeoutError') {
-            console.warn('Request timed out - this is normal in the Replit environment and will be retried automatically');
+            console.warn('Request timed out - will retry automatically');
         }
         
         // Increment failure count
@@ -129,8 +139,18 @@ async function checkAudioStatus() {
         // Hide the status indicator
         hideAudioPlaying();
         
-        // If we've had too many consecutive failures, slow down the polling rate
-        if (audioStatusFailCount > MAX_CONSECUTIVE_FAILURES) {
+        // If we're in Replit, adjust polling rate on the first failure
+        if (inReplitEnv && audioStatusFailCount === 1) {
+            console.info('Reducing audio status polling rate in Replit environment');
+            
+            // Slow down the interval immediately in Replit
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = setInterval(checkAudioStatus, 5000); // Check every 5 seconds instead of 1
+            }
+        }
+        // For non-Replit, only slow down after multiple consecutive failures
+        else if (!inReplitEnv && audioStatusFailCount > MAX_CONSECUTIVE_FAILURES) {
             console.warn(`Too many consecutive audio status check failures (${audioStatusFailCount}), reducing polling rate`);
             
             // Slow down the interval after too many failures
