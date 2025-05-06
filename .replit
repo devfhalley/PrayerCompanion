@@ -2,6 +2,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["SDL2", "SDL2_image", "SDL2_mixer", "SDL2_ttf", "ffmpeg-full", "fontconfig", "freetype", "libjpeg", "libpng", "pkg-config", "portmidi"]
 
 [workflows]
 runButton = "Project"
@@ -14,6 +15,10 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "MurattalTest"
 
 [[workflows.workflow]]
 name = "Server"
@@ -28,6 +33,15 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd raspberry_pi && python serve_dual.py"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "MurattalTest"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd raspberry_pi && python test_murattal.py"
 waitForPort = 5000
 
 [deployment]

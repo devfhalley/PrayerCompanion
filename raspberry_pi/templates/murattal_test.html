@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Murattal Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .murattal-list {
+            list-style: none;
+            padding: 0;
+        }
+        .murattal-item {
+            padding: 10px;
+            border: 1px solid #eee;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .murattal-item:hover {
+            background-color: #f9f9f9;
+        }
+        .play-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .stop-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .status-container {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        .playing-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #ccc;
+            margin-right: 8px;
+        }
+        .playing-indicator.active {
+            background-color: #4CAF50;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .timer {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <h2>Murattal Test</h2>
+            <p>This page allows testing murattal playback with unlimited duration.</p>
+        </div>
+        
+        <div class="status-container">
+            <h3>Playback Status</h3>
+            <div>
+                <span class="playing-indicator" id="playing-indicator"></span>
+                <span id="status-text">Not playing</span>
+            </div>
+            <div class="timer" id="timer">Elapsed time: 0:00</div>
+        </div>
+        
+        <div id="murattal-container">
+            <h3>Available Murattal Files</h3>
+            <ul class="murattal-list" id="murattal-list">
+                <li class="murattal-item">Loading files...</li>
+            </ul>
+        </div>
+        
+        <div>
+            <button class="stop-btn" id="stop-btn">Stop Playback</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const murattalList = document.getElementById('murattal-list');
+            const statusText = document.getElementById('status-text');
+            const playingIndicator = document.getElementById('playing-indicator');
+            const stopBtn = document.getElementById('stop-btn');
+            const timerElement = document.getElementById('timer');
+            
+            let startTime = null;
+            let timerInterval = null;
+            
+            // Load murattal files
+            fetchMurattalFiles();
+            
+            // Start status polling
+            pollStatus();
+            
+            // Setup stop button
+            stopBtn.addEventListener('click', stopPlayback);
+            
+            function fetchMurattalFiles() {
+                fetch('/api/murattal')
+                    .then(response => response.json())
+                    .then(files => {
+                        murattalList.innerHTML = '';
+                        
+                        if (files.length === 0) {
+                            murattalList.innerHTML = '<li class="murattal-item">No murattal files found</li>';
+                            return;
+                        }
+                        
+                        files.forEach(file => {
+                            const listItem = document.createElement('li');
+                            listItem.className = 'murattal-item';
+                            
+                            const nameSpan = document.createElement('span');
+                            nameSpan.textContent = file.name;
+                            
+                            const playBtn = document.createElement('button');
+                            playBtn.className = 'play-btn';
+                            playBtn.textContent = 'Play';
+                            playBtn.addEventListener('click', () => playMurattal(file.path));
+                            
+                            listItem.appendChild(nameSpan);
+                            listItem.appendChild(playBtn);
+                            murattalList.appendChild(listItem);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching murattal files:', error);
+                        murattalList.innerHTML = '<li class="murattal-item">Error loading files</li>';
+                    });
+            }
+            
+            function playMurattal(path) {
+                fetch('/api/murattal/play', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ path: path })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Started playing murattal');
+                        startTimer();
+                    } else {
+                        console.error('Failed to play murattal:', data.error);
+                        alert('Failed to play murattal: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error playing murattal:', error);
+                    alert('Error playing murattal');
+                });
+            }
+            
+            function stopPlayback() {
+                fetch('/api/murattal/stop', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Stopped playback');
+                        stopTimer();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error stopping playback:', error);
+                });
+            }
+            
+            function pollStatus() {
+                // Poll status every second
+                setInterval(function() {
+                    fetch('/api/status')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.playing) {
+                                statusText.textContent = `Playing: ${data.current_file || 'Unknown'}`;
+                                playingIndicator.classList.add('active');
+                                
+                                // Start timer if not already running
+                                if (!timerInterval) {
+                                    startTimer();
+                                }
+                            } else {
+                                statusText.textContent = 'Not playing';
+                                playingIndicator.classList.remove('active');
+                                stopTimer();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching status:', error);
+                        });
+                }, 1000);
+            }
+            
+            function startTimer() {
+                // Clear any existing timer
+                stopTimer();
+                
+                // Set start time and start the timer
+                startTime = new Date();
+                timerInterval = setInterval(updateTimer, 1000);
+                updateTimer(); // Update immediately
+            }
+            
+            function stopTimer() {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                timerElement.textContent = 'Elapsed time: 0:00';
+            }
+            
+            function updateTimer() {
+                if (!startTime) return;
+                
+                const now = new Date();
+                const elapsed = Math.floor((now - startTime) / 1000); // Elapsed seconds
+                
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                
+                timerElement.textContent = `Elapsed time: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        });
+    </script>
+</body>
+</html>

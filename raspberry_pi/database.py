@@ -108,9 +108,23 @@ def _get_db_connection():
     try:
         # Get connection parameters from environment
         db_url = os.environ.get('DATABASE_URL')
+        
+        # Fallback for older versions or if not set
         if not db_url:
-            raise Exception("DATABASE_URL environment variable not set")
+            # Try to build connection string from individual PostgreSQL environment variables
+            pguser = os.environ.get('PGUSER')
+            pgpassword = os.environ.get('PGPASSWORD')
+            pghost = os.environ.get('PGHOST')
+            pgport = os.environ.get('PGPORT', '5432')
+            pgdatabase = os.environ.get('PGDATABASE')
             
+            if pguser and pgpassword and pghost and pgdatabase:
+                db_url = f"postgresql://{pguser}:{pgpassword}@{pghost}:{pgport}/{pgdatabase}"
+                logger.info(f"Built connection string from individual PostgreSQL environment variables")
+            else:
+                raise Exception("DATABASE_URL and individual PostgreSQL environment variables not set")
+        
+        logger.info("Connecting to PostgreSQL database")
         # Create a new connection
         conn = psycopg2.connect(db_url, cursor_factory=psycopg2.extras.DictCursor)
         conn.autocommit = False

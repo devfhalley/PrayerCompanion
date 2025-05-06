@@ -226,14 +226,22 @@ class AudioPlayer:
                 
                 # Wait for playback to finish with timeout protection
                 play_start_time = time.time()
-                max_playback_time = 300  # Maximum 5 minutes for any playback to prevent indefinite hanging
+                
+                # Set timeout based on priority level
+                # For Murattal playback (PRIORITY_MURATTAL=6), allow unlimited playback time
+                # For other audio, limit to 5 minutes to prevent hanging
+                if self.current_priority == self.PRIORITY_MURATTAL:
+                    max_playback_time = float('inf')  # Unlimited for murattal
+                    logger.info("Murattal playback: allowing unlimited playing time")
+                else:
+                    max_playback_time = 300  # Maximum 5 minutes for other audio types
                 
                 while pygame.mixer.music.get_busy():
                     time.sleep(0.1)
                     
-                    # Check for timeout
+                    # Check for timeout (skip for Murattal which has infinite timeout)
                     elapsed = time.time() - play_start_time
-                    if elapsed > max_playback_time:
+                    if self.current_priority != self.PRIORITY_MURATTAL and elapsed > max_playback_time:
                         logger.warning(f"Playback timeout after {max_playback_time} seconds, forcing stop")
                         pygame.mixer.music.stop()
                         break
