@@ -8,15 +8,22 @@
         <h2>Push to Talk</h2>
     </div>
     
-    <div class="push-to-talk">
+    <div class="push-to-talk" id="push-to-talk-container">
         <div id="status-message">Initializing WebSocket...</div>
+        
+        <!-- PTT Status Indicator -->
+        <div class="ptt-connection-status">
+            <span>Push-to-Talk Status: </span>
+            <span class="ptt-status-indicator disconnected">Disconnected</span>
+        </div>
 
-        <!-- Replit Environment Notice (hidden by default) -->
+        <!-- Replit Environment Notice (will be shown when in Replit) -->
         <div id="replit-notice" class="alert alert-info" style="display: none; margin: 15px 0;">
             <i class="fas fa-info-circle"></i>
             <strong>WebSockets are disabled in the Replit environment.</strong>
             <p>Push-to-Talk requires WebSockets and only works when deployed to a Raspberry Pi or other server.</p>
             <p>This is a Replit limitation due to proxy/firewall restrictions.</p>
+            <p>The feature will work automatically when running on the production system.</p>
         </div>
         
         <div class="ptt-button" id="ptt-button">
@@ -24,6 +31,14 @@
         </div>
         
         <p class="mt-4">Press and hold the button to talk</p>
+        
+        <!-- Status messages for push-to-talk -->
+        <div id="ptt-status" class="mt-2"></div>
+        
+        <!-- Someone is speaking indicator -->
+        <div id="ptt-active-indicator" class="alert alert-warning mt-2" style="display: none;">
+            Someone is speaking...
+        </div>
         
         <div class="push-to-talk-info mt-4">
             <div class="info-item">
@@ -52,51 +67,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     const pttButton = document.getElementById('ptt-button');
     const statusMessage = document.getElementById('status-message');
-    let ws = null;
+    const pttStatusIndicator = document.querySelector('.ptt-status-indicator');
     let isRecording = false;
     let mediaRecorder = null;
     let audioChunks = [];
-    
-    // Initialize WebSocket connection with our enhanced reliable client
-    function initWebSocket() {
-        const wsUrl = getWebSocketUrl();
-        
-        statusMessage.textContent = 'Connecting...';
-        
-        // Use our enhanced ReliableWebSocket instead of the standard WebSocket
-        ws = new ReliableWebSocket(wsUrl, {
-            debug: true,
-            onOpen: function() {
-                statusMessage.textContent = 'Connected - Ready to talk';
-                pttButton.classList.add('ready');
-            },
-            onClose: function() {
-                statusMessage.textContent = 'Disconnected - Attempting to reconnect...';
-                pttButton.classList.remove('ready');
-            },
-            onError: function(error) {
-                console.error('WebSocket error:', error);
-                statusMessage.textContent = 'Connection error - Will retry automatically';
-            },
-            onReconnect: function(attempt, delay) {
-                statusMessage.textContent = `Connection lost. Reconnecting (attempt ${attempt})...`;
-            },
-            onMaxReconnectsExceeded: function() {
-                statusMessage.textContent = 'Could not reconnect after multiple attempts. Please refresh the page.';
-            },
-            // Add specific message handler for welcome messages
-            messageHandlers: {
-                'welcome': function(data) {
-                    console.log('Received welcome message from server:', data);
-                    statusMessage.textContent = 'Connected - Ready to talk';
-                    pttButton.classList.add('ready');
-                }
-            }
-        });
-        
-        // Store the WebSocket globally for the page
-        window.pushToTalkWs = ws;
-    }
     
     // Request access to the microphone
     async function initAudio() {
@@ -138,7 +112,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             
             mediaRecorder.onstop = function() {
-                if (audioChunks.length > 0 && ws && ws.isConnected()) {
+                if (audioChunks.length > 0 && window.pttWs && window.pttWs.isConnected()) {
                     // Combine chunks and convert to base64
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
                     const reader = new FileReader();
@@ -153,7 +127,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             format: 'webm_opus'
                         };
                         
-                        ws.send(JSON.stringify(message));
+                        // Use the dedicated PTT WebSocket
+                        window.pttWs.send(message);
                     };
                     
                     reader.readAsDataURL(audioBlob);
@@ -187,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function startTalking() {
-        if (!ws || !ws.isConnected() || !mediaRecorder) {
+        if (!window.pttWs || !window.pttWs.isConnected() || !mediaRecorder) {
             statusMessage.textContent = 'Cannot start talking - connection or microphone issue';
             return;
         }
@@ -198,11 +173,11 @@ document.addEventListener('DOMContentLoaded', function() {
         pttButton.classList.add('active');
         statusMessage.textContent = 'Talking...';
         
-        // Send start message
+        // Send start message using the dedicated PTT WebSocket
         const message = {
             type: 'ptt_start'
         };
-        ws.send(JSON.stringify(message));
+        window.pttWs.send(message);
         
         // Start recording
         audioChunks = [];
@@ -220,12 +195,39 @@ document.addEventListener('DOMContentLoaded', function() {
             mediaRecorder.stop();
         }
         
-        // Send stop message
-        if (ws && ws.isConnected()) {
+        // Send stop message using the dedicated PTT WebSocket
+        if (window.pttWs && window.pttWs.isConnected()) {
             const message = {
                 type: 'ptt_stop'
             };
-            ws.send(JSON.stringify(message));
+            window.pttWs.send(message);
+        }
+    }
+    
+    // Update the UI when the WebSocket status changes
+    function updateConnectionStatus() {
+        // Check if we have dedicated PTT WebSocket available
+        if (window.pttWs && window.pttWs.isConnected()) {
+            statusMessage.textContent = 'Connected - Ready to talk';
+            pttButton.classList.add('ready');
+            pttButton.classList.remove('disabled');
+            pttButton.style.backgroundColor = '';
+            pttButton.style.cursor = '';
+            
+            if (pttStatusIndicator) {
+                pttStatusIndicator.classList.remove('disconnected');
+                pttStatusIndicator.classList.add('connected');
+                pttStatusIndicator.textContent = 'Connected';
+            }
+        } else {
+            statusMessage.textContent = 'Disconnected - Waiting for connection...';
+            pttButton.classList.remove('ready');
+            
+            if (pttStatusIndicator) {
+                pttStatusIndicator.classList.remove('connected');
+                pttStatusIndicator.classList.add('disconnected');
+                pttStatusIndicator.textContent = 'Disconnected';
+            }
         }
     }
     
@@ -244,6 +246,10 @@ document.addEventListener('DOMContentLoaded', function() {
             pttButton.style.backgroundColor = '#ccc';
             pttButton.style.cursor = 'not-allowed';
             
+            if (pttStatusIndicator) {
+                pttStatusIndicator.textContent = 'Disabled in Replit';
+            }
+            
             // Log the information to console
             console.log("Push-to-Talk is disabled in Replit environment due to WebSocket limitations");
             return;
@@ -252,8 +258,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // If not in Replit, proceed with normal initialization
         const hasAudio = await initAudio();
         if (hasAudio) {
-            initWebSocket();
+            // The dual WebSockets should be set up by our main websocket_client.js script
+            // We just need to check for the connection status and set up the UI
+            
+            // Set up a periodic check for WebSocket status
+            setInterval(updateConnectionStatus, 1000);
+            
+            // Set up the push-to-talk button handlers
             setupPushToTalk();
+            
+            // Initial status update
+            updateConnectionStatus();
         }
     }
     
@@ -265,6 +280,13 @@ document.addEventListener('DOMContentLoaded', function() {
         #ptt-button.ready { background-color: var(--primary-color); }
         #ptt-button.active { transform: scale(0.95); background-color: var(--error-color); }
         #status-message { margin-bottom: 20px; }
+        .ptt-connection-status { margin-bottom: 15px; }
+        .ptt-status-indicator.connected { color: green; font-weight: bold; }
+        .ptt-status-indicator.disconnected { color: red; font-weight: bold; }
+        #ptt-status { min-height: 20px; font-weight: bold; }
+        #ptt-status.success { color: green; }
+        #ptt-status.error { color: red; }
+        #ptt-active-indicator { font-weight: bold; text-align: center; }
     `;
     document.head.appendChild(style);
 });

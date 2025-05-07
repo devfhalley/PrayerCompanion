@@ -19,7 +19,7 @@ from prayer_scheduler import PrayerScheduler
 from alarm_scheduler import AlarmScheduler
 from audio_player import AudioPlayer
 from config import Config
-from websocket_server import setup_websocket, broadcast_message
+from websocket_server import setup_websocket, broadcast_audio_message
 from config import Config
 
 # Setup logging
@@ -802,7 +802,7 @@ def test_adhan():
         "prayer": prayer_name if prayer_name else "Test",
         "time": datetime.now().strftime("%H:%M")
     }
-    broadcast_message(notification)
+    broadcast_audio_message(notification)
     logger.info(f"Broadcasting adhan playing notification: {notification}")
     
     # Check if there's a custom sound for this prayer
@@ -1009,8 +1009,8 @@ def play_murattal():
     
     # Broadcast WebSocket message about murattal playing
     app.logger.info(f"Broadcasting murattal_playing message for: {murattal_name}")
-    # Use the imported broadcast_message function directly
-    broadcast_message({
+    # Use the imported broadcast_audio_message function directly
+    broadcast_audio_message({
         'type': 'murattal_playing',
         'murattal_name': murattal_name,
         'file_path': file_path,
@@ -1177,7 +1177,7 @@ def update_volume():
     setattr(Config, 'VOLUME', volume)
     
     # Broadcast volume change to all connected clients
-    broadcast_message({
+    broadcast_audio_message({
         "type": "volume_changed",
         "volume": volume
     })
@@ -1499,7 +1499,7 @@ def test_alarm(alarm_id):
         
         # Broadcast alarm playing message for the ticker
         alarm_label = alarm.label or f"Alarm {alarm.id}"
-        broadcast_message({
+        broadcast_audio_message({
             'type': 'alarm_playing',
             'alarm_id': alarm.id,
             'alarm_label': alarm_label,

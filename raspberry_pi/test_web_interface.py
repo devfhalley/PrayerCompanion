@@ -6,7 +6,10 @@ This script provides a simple Flask server to test the web interface.
 
 import os
 import logging
+import json
+import time
 from flask import Flask, render_template, redirect, url_for, jsonify, request
+from flask_sock import Sock
 
 # Set up logging
 logging.basicConfig(
@@ -17,6 +20,7 @@ logger = logging.getLogger('test_web_interface')
 
 # Create Flask app
 app = Flask(__name__)
+sock = Sock(app)
 
 # Basic routes
 @app.route('/')
@@ -61,6 +65,15 @@ def web_murattal():
 
 # API endpoints
 @app.route('/api/status')
+def get_api_status():
+    """Get server status."""
+    return jsonify({
+        "status": "ok",
+        "audio_playing": False,
+        "audio_type": "None"
+    })
+
+@app.route('/status')
 def get_status():
     """Get server status."""
     return jsonify({
@@ -68,6 +81,81 @@ def get_status():
         "audio_playing": False,
         "audio_type": "None"
     })
+
+@app.route('/prayer-times')
+def get_prayer_times():
+    """Get prayer times for testing."""
+    return jsonify({
+        "prayer_times": [],
+        "status": "ok"
+    })
+
+@app.route('/volume')
+def get_volume():
+    """Get volume level for testing."""
+    return jsonify({
+        "volume": 70,
+        "status": "ok"
+    })
+
+# WebSocket endpoints
+@sock.route('/ws/audio')
+def handle_audio_websocket(ws):
+    """Handle WebSocket connections for audio playback notifications."""
+    # Send welcome message
+    welcome_message = {
+        'type': 'welcome',
+        'message': 'Connected to Prayer Alarm System (Audio Channel)',
+        'server_time': int(time.time() * 1000),
+        'channel': 'audio'
+    }
+    ws.send(json.dumps(welcome_message))
+    
+    # Keep connection alive
+    while True:
+        try:
+            # Wait for messages (will timeout in Replit environment)
+            message = ws.receive()
+            if message:
+                # Echo back any received messages as pong
+                response = {
+                    'type': 'pong',
+                    'timestamp': int(time.time() * 1000),
+                    'server_time': int(time.time() * 1000)
+                }
+                ws.send(json.dumps(response))
+        except Exception as e:
+            logger.error(f"Audio WebSocket error: {str(e)}")
+            break
+
+@sock.route('/ws/ptt')
+def handle_ptt_websocket(ws):
+    """Handle WebSocket connections for push-to-talk functionality."""
+    # Send welcome message
+    welcome_message = {
+        'type': 'welcome',
+        'message': 'Connected to Prayer Alarm System (Push-to-Talk Channel)',
+        'server_time': int(time.time() * 1000),
+        'channel': 'ptt'
+    }
+    ws.send(json.dumps(welcome_message))
+    
+    # Keep connection alive
+    while True:
+        try:
+            # Wait for messages (will timeout in Replit environment)
+            message = ws.receive()
+            if message:
+                # Echo back any received messages as pong
+                response = {
+                    'type': 'pong',
+                    'timestamp': int(time.time() * 1000),
+                    'server_time': int(time.time() * 1000)
+                }
+                ws.send(json.dumps(response))
+        except Exception as e:
+            logger.error(f"PTT WebSocket error: {str(e)}")
+            break
 
 # Add cache-control headers for static files
 @app.after_request

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 WebSocket server module for Raspberry Pi Prayer Alarm System.
-This module handles real-time communication for push-to-talk feature.
+This module provides two WebSocket connections:
+1. /ws/audio - For playing sounds and audio notifications
+2. /ws/ptt - For push-to-talk functionality
 """
 
 import logging
@@ -17,13 +19,15 @@ from pydub import AudioSegment
 
 logger = logging.getLogger(__name__)
 
-# Global variables
-# Using a dictionary to store clients with their IDs as keys for better tracking
-clients = {}
-clients_lock = threading.Lock()
+# Global variables for different types of clients
+# Using dictionaries to store clients with their IDs as keys for better tracking
+audio_clients = {}  # Clients connected to /ws/audio endpoint
+ptt_clients = {}    # Clients connected to /ws/ptt endpoint
+audio_clients_lock = threading.Lock()
+ptt_clients_lock = threading.Lock()
 
 def setup_websocket(app, audio_player):
-    """Setup WebSocket server for Flask application.
+    """Setup WebSocket server for Flask application with multiple endpoints.
     
     Args:
         app: Flask application
@@ -36,66 +40,113 @@ def setup_websocket(app, audio_player):
     sock.max_message_size = 16 * 1024 * 1024  # 16MB max message size
     
     # Set basic configuration options that are supported by the Flask-Sock library
-    # Note: Flask-Sock has limited configuration options compared to other WebSocket libraries
     app.config['SOCK_SERVER_OPTIONS'] = {
         'ping_interval': 25  # Send ping frames every 25 seconds
     }
     
-    # Start a background thread for sending periodic keepalive pings
+    # Start a background thread for sending periodic keepalive pings to all clients
     keepalive_thread = threading.Thread(target=run_keepalive_pings, daemon=True)
     keepalive_thread.start()
     
-    @sock.route('/ws')
-    def handle_websocket(ws):
-        """Handle WebSocket connections."""
+    @sock.route('/ws/audio')
+    def handle_audio_websocket(ws):
+        """Handle WebSocket connections for audio playback notifications."""
         client_id = id(ws)
-        logger.info(f"New WebSocket client connected: {client_id}")
+        logger.info(f"New audio WebSocket client connected: {client_id}")
         
         # Send a welcome message to confirm connection
         try:
             welcome_message = {
                 'type': 'welcome',
-                'message': 'Connected to Prayer Alarm System',
-                'server_time': int(time.time() * 1000)
+                'message': 'Connected to Prayer Alarm System (Audio Channel)',
+                'server_time': int(time.time() * 1000),
+                'channel': 'audio'
             }
             ws.send(json.dumps(welcome_message))
-            logger.info(f"Sent welcome message to client {client_id}")
+            logger.info(f"Sent welcome message to audio client {client_id}")
         except Exception as e:
-            logger.error(f"Error sending welcome message: {str(e)}")
+            logger.error(f"Error sending welcome message to audio client: {str(e)}")
         
-        with clients_lock:
+        with audio_clients_lock:
             # Store client with its ID as the key
-            clients[client_id] = ws
+            audio_clients[client_id] = ws
         
         try:
             # Keep connection alive and process messages
             while True:
                 # Use a timeout to prevent blocking indefinitely
-                # This helps detect disconnections more quickly
                 message = ws.receive(timeout=30)
                 
                 if message is None:
-                    logger.info(f"Client {client_id} connection closed gracefully")
+                    logger.info(f"Audio client {client_id} connection closed gracefully")
                     break
                 
                 try:
-                    process_message(message, audio_player)
+                    # Process messages for the audio channel (like play requests, volume changes)
+                    process_audio_message(message, audio_player)
                 except Exception as e:
-                    logger.error(f"Error processing message: {str(e)}")
-                    # Continue the loop even if there's an error processing a message
+                    logger.error(f"Error processing audio message: {str(e)}")
                     continue
         
         except Exception as e:
-            # Log the specific error type to help with debugging
             error_type = type(e).__name__
-            logger.error(f"WebSocket error ({error_type}): {str(e)}")
+            logger.error(f"Audio WebSocket error ({error_type}): {str(e)}")
         
         finally:
-            with clients_lock:
-                # Remove client using its ID
-                if client_id in clients:
-                    del clients[client_id]
-            logger.info(f"WebSocket client disconnected: {client_id}")
+            with audio_clients_lock:
+                if client_id in audio_clients:
+                    del audio_clients[client_id]
+            logger.info(f"Audio WebSocket client disconnected: {client_id}")
+    
+    @sock.route('/ws/ptt')
+    def handle_ptt_websocket(ws):
+        """Handle WebSocket connections for push-to-talk functionality."""
+        client_id = id(ws)
+        logger.info(f"New push-to-talk WebSocket client connected: {client_id}")
+        
+        # Send a welcome message to confirm connection
+        try:
+            welcome_message = {
+                'type': 'welcome',
+                'message': 'Connected to Prayer Alarm System (Push-to-Talk Channel)',
+                'server_time': int(time.time() * 1000),
+                'channel': 'ptt'
+            }
+            ws.send(json.dumps(welcome_message))
+            logger.info(f"Sent welcome message to PTT client {client_id}")
+        except Exception as e:
+            logger.error(f"Error sending welcome message to PTT client: {str(e)}")
+        
+        with ptt_clients_lock:
+            # Store client with its ID as the key
+            ptt_clients[client_id] = ws
+        
+        try:
+            # Keep connection alive and process messages
+            while True:
+                # Use a timeout to prevent blocking indefinitely
+                message = ws.receive(timeout=30)
+                
+                if message is None:
+                    logger.info(f"PTT client {client_id} connection closed gracefully")
+                    break
+                
+                try:
+                    # Process messages for the push-to-talk channel
+                    process_ptt_message(message, audio_player)
+                except Exception as e:
+                    logger.error(f"Error processing PTT message: {str(e)}")
+                    continue
+        
+        except Exception as e:
+            error_type = type(e).__name__
+            logger.error(f"PTT WebSocket error ({error_type}): {str(e)}")
+        
+        finally:
+            with ptt_clients_lock:
+                if client_id in ptt_clients:
+                    del ptt_clients[client_id]
+            logger.info(f"PTT WebSocket client disconnected: {client_id}")
 
 def run_keepalive_pings():
     """Send periodic ping messages to all connected clients to keep connections alive."""
@@ -104,16 +155,24 @@ def run_keepalive_pings():
             # Sleep first to allow connections to be established
             time.sleep(15)
             
-            # Only send if we have active clients
-            with clients_lock:
-                if clients:
-                    ping_message = {
-                        'type': 'ping',
-                        'timestamp': int(time.time() * 1000),
-                        'message': 'keepalive'
-                    }
-                    broadcast_message(ping_message)
-                    logger.debug(f"Sent keepalive ping to {len(clients)} clients")
+            ping_message = {
+                'type': 'ping',
+                'timestamp': int(time.time() * 1000),
+                'message': 'keepalive'
+            }
+            
+            # Send to audio clients
+            with audio_clients_lock:
+                if audio_clients:
+                    broadcast_audio_message(ping_message)
+                    logger.debug(f"Sent keepalive ping to {len(audio_clients)} audio clients")
+            
+            # Send to push-to-talk clients
+            with ptt_clients_lock:
+                if ptt_clients:
+                    broadcast_ptt_message(ping_message)
+                    logger.debug(f"Sent keepalive ping to {len(ptt_clients)} PTT clients")
+                    
         except Exception as e:
             logger.error(f"Error in keepalive thread: {str(e)}")
             # Sleep a bit longer on error to prevent rapid retries
@@ -222,8 +281,8 @@ def convert_pcm_to_wav(pcm_data, sample_rate=16000, channels=1):
         except Exception as e:
             logger.error(f"Error cleaning up temporary files: {str(e)}")
 
-def process_message(message, audio_player):
-    """Process incoming WebSocket message.
+def process_audio_message(message, audio_player):
+    """Process incoming WebSocket message from the audio channel.
     
     Args:
         message: JSON message as string
@@ -235,21 +294,131 @@ def process_message(message, audio_player):
         
         # Handle ping messages with immediate pong response
         if message_type == 'ping':
-            logger.debug("Received ping message, sending pong")
+            logger.debug("Received ping message on audio channel, sending pong")
             timestamp = data.get('timestamp', 0)
             pong_message = {
                 'type': 'pong',
                 'timestamp': timestamp,
-                'server_time': int(time.time() * 1000)
+                'server_time': int(time.time() * 1000),
+                'channel': 'audio'
             }
-            # Send pong response to all clients - helps with keepalive
-            broadcast_message(pong_message)
+            # Send pong response to audio clients
+            broadcast_audio_message(pong_message)
+            return
+        
+        elif message_type == 'play_sound':
+            # Play a sound file on the server
+            sound_file = data.get('file_path')
+            sound_priority = data.get('priority', audio_player.PRIORITY_ALARM)
+            
+            if sound_file:
+                logger.info(f"Playing sound file: {sound_file} with priority {sound_priority}")
+                audio_player.play_file(sound_file, priority=sound_priority)
+                
+                # Notify all audio clients about the playback
+                notify_message = {
+                    'type': 'audio_status_change',
+                    'status': 'playing',
+                    'file': sound_file,
+                    'timestamp': int(time.time() * 1000)
+                }
+                broadcast_audio_message(notify_message)
+            else:
+                logger.warning("Received play_sound message with no file path")
+        
+        elif message_type == 'play_tts':
+            # Play text-to-speech
+            tts_text = data.get('text')
+            tts_priority = data.get('priority', audio_player.PRIORITY_ALARM)
+            
+            if tts_text:
+                logger.info(f"Playing TTS: '{tts_text}' with priority {tts_priority}")
+                audio_player.play_tts(tts_text, priority=tts_priority)
+                
+                # Notify all audio clients about the TTS playback
+                notify_message = {
+                    'type': 'audio_status_change',
+                    'status': 'playing_tts',
+                    'text': tts_text,
+                    'timestamp': int(time.time() * 1000)
+                }
+                broadcast_audio_message(notify_message)
+            else:
+                logger.warning("Received play_tts message with no text")
+        
+        elif message_type == 'stop_audio':
+            # Stop all audio playback
+            logger.info("Stopping all audio playback via WebSocket command")
+            audio_player.stop()
+            
+            # Notify all audio clients
+            notify_message = {
+                'type': 'audio_status_change',
+                'status': 'stopped',
+                'timestamp': int(time.time() * 1000)
+            }
+            broadcast_audio_message(notify_message)
+            
+        elif message_type == 'client_connect':
+            # Client is reporting that it has connected to the audio channel
+            client_info = data.get('client_info', {})
+            logger.info(f"Audio client connected: {client_info}")
+            
+            # Send an acknowledgement
+            ack_message = {
+                'type': 'connect_ack',
+                'server_time': int(time.time() * 1000),
+                'status': 'connected',
+                'channel': 'audio'
+            }
+            broadcast_audio_message(ack_message)
+            
+        else:
+            logger.warning(f"Unknown audio message type: {message_type}")
+    
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON message on audio channel")
+    except Exception as e:
+        logger.error(f"Error processing audio message: {str(e)}")
+
+
+def process_ptt_message(message, audio_player):
+    """Process incoming WebSocket message from the push-to-talk channel.
+    
+    Args:
+        message: JSON message as string
+        audio_player: AudioPlayer instance for playing audio
+    """
+    try:
+        data = json.loads(message)
+        message_type = data.get('type')
+        
+        # Handle ping messages with immediate pong response
+        if message_type == 'ping':
+            logger.debug("Received ping message on PTT channel, sending pong")
+            timestamp = data.get('timestamp', 0)
+            pong_message = {
+                'type': 'pong',
+                'timestamp': timestamp,
+                'server_time': int(time.time() * 1000),
+                'channel': 'ptt'
+            }
+            # Send pong response to PTT clients
+            broadcast_ptt_message(pong_message)
             return
             
         if message_type == 'ptt_start':
             logger.info("Push-to-talk started")
             # Stop any current playback
             audio_player.stop()
+            
+            # Notify audio clients that PTT has started
+            notify_message = {
+                'type': 'ptt_status',
+                'status': 'active',
+                'timestamp': int(time.time() * 1000)
+            }
+            broadcast_audio_message(notify_message)
             
         elif message_type == 'ptt_audio':
             # Process audio data
@@ -268,7 +437,7 @@ def process_message(message, audio_player):
                 logger.info("Converting WebM/Opus audio to WAV")
                 wav_data = convert_webm_to_wav(audio_bytes)
                 if wav_data:
-                    audio_player.play_bytes(wav_data)
+                    audio_player.play_push_to_talk(wav_data)
                 else:
                     logger.error("Failed to convert WebM to WAV")
             elif audio_format == 'pcm_16bit':
@@ -280,40 +449,50 @@ def process_message(message, audio_player):
                 # Convert PCM to WAV
                 wav_data = convert_pcm_to_wav(audio_bytes, sample_rate, channels)
                 if wav_data:
-                    audio_player.play_bytes(wav_data)
+                    audio_player.play_push_to_talk(wav_data)
                 else:
                     logger.error("Failed to convert PCM to WAV")
             else:
                 # Try to play directly as fallback
-                logger.info(f"Trying to play audio with format: {audio_format}")
-                audio_player.play_bytes(audio_bytes)
+                logger.info(f"Trying to play PTT audio with format: {audio_format}")
+                audio_player.play_push_to_talk(audio_bytes)
         
         elif message_type == 'ptt_stop':
             logger.info("Push-to-talk stopped")
             
+            # Notify audio clients that PTT has stopped
+            notify_message = {
+                'type': 'ptt_status',
+                'status': 'inactive',
+                'timestamp': int(time.time() * 1000)
+            }
+            broadcast_audio_message(notify_message)
+            
         elif message_type == 'client_connect':
-            # Client is reporting that it has connected
+            # Client is reporting that it has connected to the PTT channel
             client_info = data.get('client_info', {})
-            logger.info(f"Client connected: {client_info}")
+            logger.info(f"PTT client connected: {client_info}")
             
             # Send an acknowledgement
             ack_message = {
                 'type': 'connect_ack',
                 'server_time': int(time.time() * 1000),
-                'status': 'connected'
+                'status': 'connected',
+                'channel': 'ptt'
             }
-            broadcast_message(ack_message)
+            broadcast_ptt_message(ack_message)
             
         else:
-            logger.warning(f"Unknown message type: {message_type}")
+            logger.warning(f"Unknown PTT message type: {message_type}")
     
     except json.JSONDecodeError:
-        logger.error("Invalid JSON message")
+        logger.error("Invalid JSON message on PTT channel")
     except Exception as e:
-        logger.error(f"Error processing message: {str(e)}")
+        logger.error(f"Error processing PTT message: {str(e)}")
 
-def broadcast_message(message):
-    """Broadcast a message to all connected clients.
+
+def broadcast_audio_message(message):
+    """Broadcast a message to all connected audio clients.
     
     Args:
         message: JSON message as string or dict
@@ -321,23 +500,54 @@ def broadcast_message(message):
     if isinstance(message, dict):
         message = json.dumps(message)
     
-    with clients_lock:
+    with audio_clients_lock:
         disconnected_client_ids = set()
         
         # Iterate over items to get both client_id and websocket object
-        for client_id, ws in list(clients.items()):
+        for client_id, ws in list(audio_clients.items()):
             try:
                 ws.send(message)
             except Exception as e:
-                logger.error(f"Error sending message to client {client_id}: {str(e)}")
+                logger.error(f"Error sending message to audio client {client_id}: {str(e)}")
                 disconnected_client_ids.add(client_id)
         
         # Remove disconnected clients
         for client_id in disconnected_client_ids:
-            if client_id in clients:
-                del clients[client_id]
-                logger.info(f"Removed disconnected client: {client_id}")
+            if client_id in audio_clients:
+                del audio_clients[client_id]
+                logger.info(f"Removed disconnected audio client: {client_id}")
                 
         # Log active connection count
-        if clients:
-            logger.debug(f"Active WebSocket connections: {len(clients)}")
+        if audio_clients:
+            logger.debug(f"Active audio WebSocket connections: {len(audio_clients)}")
+
+
+def broadcast_ptt_message(message):
+    """Broadcast a message to all connected push-to-talk clients.
+    
+    Args:
+        message: JSON message as string or dict
+    """
+    if isinstance(message, dict):
+        message = json.dumps(message)
+    
+    with ptt_clients_lock:
+        disconnected_client_ids = set()
+        
+        # Iterate over items to get both client_id and websocket object
+        for client_id, ws in list(ptt_clients.items()):
+            try:
+                ws.send(message)
+            except Exception as e:
+                logger.error(f"Error sending message to PTT client {client_id}: {str(e)}")
+                disconnected_client_ids.add(client_id)
+        
+        # Remove disconnected clients
+        for client_id in disconnected_client_ids:
+            if client_id in ptt_clients:
+                del ptt_clients[client_id]
+                logger.info(f"Removed disconnected PTT client: {client_id}")
+                
+        # Log active connection count
+        if ptt_clients:
+            logger.debug(f"Active PTT WebSocket connections: {len(ptt_clients)}")

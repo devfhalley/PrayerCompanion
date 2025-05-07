@@ -354,15 +354,21 @@ function isReplitEnvironment() {
         isReplit: isReplit
     });
     
-    // Always return true for now to ensure WebSockets are disabled in problematic environments
-    return true;
+    // Return actual detection result to allow WebSockets in non-Replit environments
+    return isReplit;
 }
 
-// Setup global WebSocket connection
-let globalWs = null;
+// Global WebSocket connections
+window.audioWs = null;    // WebSocket for audio notifications
+window.pttWs = null;      // WebSocket for push-to-talk
 
-function setupGlobalWebSocket() {
-    // Check if we're in Replit environment - don't even attempt to create WebSockets if we are
+/**
+ * Sets up dual WebSocket connections:
+ * 1. Audio WebSocket - for sound playback and notifications
+ * 2. Push-to-Talk WebSocket - for voice communication
+ */
+function setupDualWebSockets() {
+    // Check if we're in Replit environment - don't attempt to create WebSockets if we are
     const inReplitEnvironment = isReplitEnvironment();
     if (inReplitEnvironment) {
         console.log('Replit environment detected - WebSockets are disabled');
@@ -377,27 +383,50 @@ function setupGlobalWebSocket() {
             }
         });
         
+        // Update Push-to-Talk specific status indicators
+        document.querySelectorAll('.ptt-status-indicator').forEach(el => {
+            el.classList.remove('connected');
+            el.classList.add('disconnected');
+            if (el.textContent) {
+                el.textContent = 'Disabled in Replit';
+            }
+        });
+        
         // Set a global flag to indicate WebSockets are disabled
         window.webSocketsDisabled = true;
         
         return null;
     }
     
+    // Setup audio WebSocket
+    setupAudioWebSocket();
+    
+    // Setup PTT WebSocket (only if we're on the push-to-talk page)
+    if (document.querySelector('#push-to-talk-container') || 
+        window.location.pathname.includes('push-to-talk')) {
+        setupPushToTalkWebSocket();
+    }
+}
+
+/**
+ * Sets up the WebSocket connection for audio notifications and sound playback status.
+ */
+function setupAudioWebSocket() {
     // Only proceed with WebSocket creation in non-Replit environments
-    const wsUrl = getWebSocketUrl();
+    const wsUrl = getWebSocketUrl('/ws/audio');
     
     // Double-check that we have a valid WebSocket URL
     if (!wsUrl) {
-        console.warn('No valid WebSocket URL available - skipping WebSocket connection');
+        console.warn('No valid WebSocket URL available for audio - skipping connection');
         return null;
     }
     
-    console.log('Setting up global WebSocket connection to:', wsUrl);
+    console.log('Setting up audio WebSocket connection to:', wsUrl);
     
-    globalWs = new ReliableWebSocket(wsUrl, {
+    window.audioWs = new ReliableWebSocket(wsUrl, {
         debug: true,
         onOpen: () => {
-            console.log('Global WebSocket connection established successfully');
+            console.log('Audio WebSocket connection established successfully');
             
             // Update any UI elements that depend on WebSocket status
             document.querySelectorAll('.ws-status-indicator').forEach(el => {
@@ -409,7 +438,7 @@ function setupGlobalWebSocket() {
             });
         },
         onClose: () => {
-            console.log('Global WebSocket connection closed');
+            console.log('Audio WebSocket connection closed');
             
             // Update any UI elements that depend on WebSocket status
             document.querySelectorAll('.ws-status-indicator').forEach(el => {
@@ -421,34 +450,171 @@ function setupGlobalWebSocket() {
             });
         },
         onError: (error) => {
-            console.error('Global WebSocket error:', error);
+            console.error('Audio WebSocket error:', error);
         },
         onMessage: (data) => {
-            console.log('Global WebSocket message received:', data);
+            console.log('Audio WebSocket message received:', data);
             
             // Special handling for specific message types
             if (data.type === 'pong') {
-                console.log('Received pong response from server');
+                console.log('Received pong response from audio server');
             } else if (data.type === 'audio_status_change') {
                 // Handle audio status change notification
-                updateAudioStatusUI(data.status);
+                updateAudioStatusUI(data.status, data);
             } else if (data.type === 'prayer_time_notification') {
                 // Handle prayer time notification
                 showPrayerNotification(data);
             } else if (data.type === 'adhan_playing') {
                 // Handle adhan playing notification
                 showAdhanNotification(data);
+            } else if (data.type === 'ptt_status') {
+                // Handle push-to-talk status change
+                updatePushToTalkStatusUI(data.status);
             }
         }
     });
     
-    // Make the WebSocket accessible globally
-    window.globalWs = globalWs;
+    // WebSocket is already accessible globally
+    return window.audioWs;
+}
+
+/**
+ * Sets up the WebSocket connection for push-to-talk functionality.
+ */
+function setupPushToTalkWebSocket() {
+    // Only proceed with WebSocket creation in non-Replit environments
+    const wsUrl = getWebSocketUrl('/ws/ptt');
     
-    return globalWs;
+    // Double-check that we have a valid WebSocket URL
+    if (!wsUrl) {
+        console.warn('No valid WebSocket URL available for PTT - skipping connection');
+        
+        // Show information about PTT not working in Replit
+        if (document.querySelector('#push-to-talk-container')) {
+            document.querySelector('#replit-notice').style.display = 'block';
+        }
+        
+        return null;
+    }
+    
+    console.log('Setting up Push-to-Talk WebSocket connection to:', wsUrl);
+    
+    window.pttWs = new ReliableWebSocket(wsUrl, {
+        debug: true,
+        onOpen: () => {
+            console.log('Push-to-Talk WebSocket connection established successfully');
+            
+            // Enable PTT functionality in the UI
+            const pttButton = document.querySelector('#ptt-button');
+            if (pttButton) {
+                pttButton.disabled = false;
+                pttButton.classList.remove('disabled');
+            }
+            
+            // Hide Replit notice as we're using a real WebSocket connection
+            const replitNotice = document.querySelector('#replit-notice');
+            if (replitNotice) {
+                replitNotice.style.display = 'none';
+            }
+            
+            // Update PTT-specific status indicators
+            document.querySelectorAll('.ptt-status-indicator').forEach(el => {
+                el.classList.remove('disconnected');
+                el.classList.add('connected');
+                if (el.textContent) {
+                    el.textContent = 'Connected';
+                }
+            });
+        },
+        onClose: () => {
+            console.log('Push-to-Talk WebSocket connection closed');
+            
+            // Disable PTT functionality in the UI
+            const pttButton = document.querySelector('#ptt-button');
+            if (pttButton) {
+                pttButton.disabled = true;
+                pttButton.classList.add('disabled');
+            }
+            
+            // Update PTT-specific status indicators
+            document.querySelectorAll('.ptt-status-indicator').forEach(el => {
+                el.classList.remove('connected');
+                el.classList.add('disconnected');
+                if (el.textContent) {
+                    el.textContent = 'Disconnected';
+                }
+            });
+        },
+        onError: (error) => {
+            console.error('Push-to-Talk WebSocket error:', error);
+        },
+        onMessage: (data) => {
+            console.log('Push-to-Talk WebSocket message received:', data);
+            
+            // Special handling for specific message types
+            if (data.type === 'pong') {
+                console.log('Received pong response from PTT server');
+            } else if (data.type === 'ptt_acknowledgement') {
+                // Handle acknowledgement of PTT audio received
+                updatePttSendStatus(true, data.message || 'Audio received');
+            }
+        }
+    });
+    
+    // WebSocket is already accessible globally
+    return window.pttWs;
+}
+
+/**
+ * Send audio data over the Push-to-Talk WebSocket.
+ * @param {Object} audioData - The audio data to send
+ * @returns {boolean} - Whether the send was successful
+ */
+function sendPushToTalkAudio(audioData) {
+    if (!window.pttWs || !window.pttWs.isConnected()) {
+        console.warn('Cannot send PTT audio - no active connection');
+        return false;
+    }
+    
+    return window.pttWs.send(audioData);
+}
+
+/**
+ * Update the Push-to-Talk status in the UI.
+ * @param {string} status - The status message
+ */
+function updatePttSendStatus(success, message) {
+    const statusEl = document.querySelector('#ptt-status');
+    if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.className = success ? 'success' : 'error';
+        
+        // Clear the status after a delay
+        setTimeout(() => {
+            statusEl.textContent = '';
+            statusEl.className = '';
+        }, 3000);
+    }
+}
+
+/**
+ * Update the Push-to-Talk status UI based on active status.
+ * @param {string} status - 'active' or 'inactive'
+ */
+function updatePushToTalkStatusUI(status) {
+    const pttActiveIndicator = document.querySelector('#ptt-active-indicator');
+    if (pttActiveIndicator) {
+        if (status === 'active') {
+            pttActiveIndicator.style.display = 'block';
+            pttActiveIndicator.textContent = 'Someone is speaking...';
+        } else {
+            pttActiveIndicator.style.display = 'none';
+        }
+    }
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    setupGlobalWebSocket();
+    // Setup both WebSocket connections
+    setupDualWebSockets();
 });

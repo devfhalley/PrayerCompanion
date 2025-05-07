@@ -443,13 +443,13 @@ class PrayerScheduler:
             prayer: PrayerTime object
         """
         try:
-            from websocket_server import broadcast_message
+            from websocket_server import broadcast_audio_message
             import json
             message = {
                 'type': message_type,
                 'prayer': prayer.name,
                 'time': prayer.time.strftime('%H:%M')
             }
-            broadcast_message(json.dumps(message))
+            broadcast_audio_message(message)
         except Exception as e:
             logger.warning(f"Error broadcasting prayer message: {str(e)}")
