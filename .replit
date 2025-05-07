@@ -18,7 +18,7 @@ args = "Server"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "MurattalTest"
+args = "TestWebInterface"
 
 [[workflows.workflow]]
 name = "Server"
@@ -36,12 +36,12 @@ args = "cd raspberry_pi && python serve_dual.py"
 waitForPort = 5000
 
 [[workflows.workflow]]
-name = "MurattalTest"
+name = "TestWebInterface"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd raspberry_pi && python test_murattal.py"
+args = "cd raspberry_pi && python test_web_interface.py"
 waitForPort = 5000
 
 [deployment]

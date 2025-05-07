@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Web Interface - Prayer Alarm System</title>
+    <link rel="stylesheet" href="/static-nocache/css/styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: #f8f8f8;
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            margin: 0;
+            padding: 0;
+        }
+        
+        nav li {
+            margin-right: 20px;
+        }
+        
+        nav a {
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        nav a:hover {
+            color: #4CAF50;
+        }
+        
+        .card {
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background-color: #f5f5f5;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .card-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .card-content {
+            padding: 20px;
+        }
+        
+        .menu-links {
+            display: flex;
+            flex-direction: column;
+            margin-top: 20px;
+        }
+        
+        .menu-link {
+            display: block;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            background-color: #f8f8f8;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #333;
+            border: 1px solid #ddd;
+            transition: all 0.3s ease;
+        }
+        
+        .menu-link:hover {
+            background-color: #4CAF50;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">Prayer Alarm System - Test Interface</div>
+            <nav>
+                <ul>
+                    <li><a href="{{ url_for('web_home') }}">Home</a></li>
+                    <li><a href="{{ url_for('web_prayer_times') }}">Adzan</a></li>
+                    <li><a href="{{ url_for('web_alarms') }}">Alarms</a></li>
+                    <li><a href="{{ url_for('web_push_to_talk') }}">Talk</a></li>
+                    <li><a href="{{ url_for('web_murattal') }}">Murattal</a></li>
+                    <li><a href="{{ url_for('web_settings') }}">Settings</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <h2>Test Web Interface</h2>
+            </div>
+            <div class="card-content">
+                <p>This is a test interface for the Prayer Alarm System. Use the links below to navigate to different pages:</p>
+                
+                <div class="menu-links">
+                    <a href="{{ url_for('web_home') }}" class="menu-link">Home</a>
+                    <a href="{{ url_for('web_prayer_times') }}" class="menu-link">Prayer Times</a>
+                    <a href="{{ url_for('web_alarms') }}" class="menu-link">Alarms</a>
+                    <a href="{{ url_for('web_push_to_talk') }}" class="menu-link">Push to Talk</a>
+                    <a href="{{ url_for('web_murattal') }}" class="menu-link">Murattal</a>
+                    <a href="{{ url_for('web_settings') }}" class="menu-link">Settings</a>
+                </div>
+                
+                <p>Testing URL generation:</p>
+                <ul>
+                    <li>Home URL: {{ url_for('web_home') }}</li>
+                    <li>Prayer Times URL: {{ url_for('web_prayer_times') }}</li>
+                    <li>Alarms URL: {{ url_for('web_alarms') }}</li>
+                    <li>Push to Talk URL: {{ url_for('web_push_to_talk') }}</li>
+                    <li>Murattal URL: {{ url_for('web_murattal') }}</li>
+                    <li>Settings URL: {{ url_for('web_settings') }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
