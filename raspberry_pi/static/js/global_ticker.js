@@ -424,7 +424,43 @@ function setupGlobalWebSocket() {
             // Error occurred
             tickerState.wsConnection.onerror = function(error) {
                 console.warn('WebSocket error occurred:', error);
+                
+                // Log more detailed error information when available
+                if (error && error.target) {
+                    // Get more details about the error when possible
+                    const wsInstance = error.target;
+                    console.warn(`WebSocket error details - readyState: ${wsInstance.readyState}, URL: ${wsInstance.url || 'unknown'}`);
+                }
+                
+                // Store error information for diagnostic purposes
+                tickerState.lastError = {
+                    time: new Date().toISOString(),
+                    details: error ? (error.message || error.toString()) : 'Unknown error'
+                };
+                
+                // Force close the connection to trigger the onclose handler for recovery
+                // This ensures we always follow the reconnection logic properly
+                try {
+                    if (tickerState.wsConnection && 
+                        tickerState.wsConnection.readyState !== WebSocket.CLOSED &&
+                        tickerState.wsConnection.readyState !== WebSocket.CLOSING) {
+                        // Only try to close if the connection is still open or connecting
+                        tickerState.wsConnection.close();
+                    }
+                } catch (closeError) {
+                    console.error('Error closing WebSocket after error:', closeError);
+                }
+                
                 // Don't attempt to reconnect here, let the onclose handler do it
+                // But set a safety timeout in case onclose doesn't fire
+                setTimeout(() => {
+                    // If we still have the same connection instance, it means onclose didn't fire
+                    if (tickerState.wsConnection === error.target) {
+                        console.warn('WebSocket onclose event did not fire after error, forcing reconnection');
+                        tickerState.wsConnection = null; // Clear the reference
+                        setupGlobalWebSocket(); // Attempt reconnection
+                    }
+                }, 3000); // 3 second safety timeout
             };
             
         } catch (socketError) {

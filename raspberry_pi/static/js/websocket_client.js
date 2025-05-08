@@ -62,29 +62,65 @@ class ReliableWebSocket {
         }
         
         try {
-            // Create a new WebSocket connection
+            // Create a new WebSocket connection with explicit error handling
             this.ws = new WebSocket(this.url);
             
-            // Setup connection timeout
+            // Immediately track connection state
+            this.connectionState = 'connecting';
+            
+            // Setup connection timeout with progressive checking
             this.connectionTimer = setTimeout(() => {
-                if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
                     if (this.options.debug) {
                         console.warn('WebSocket: Connection timeout, closing and retrying');
+                        console.warn(`WebSocket connection state: ${this.connectionState}, readyState: ${this.ws ? this.ws.readyState : 'No connection'}`);
                     }
-                    this.ws.close();
+                    
+                    // Force close if needed
+                    if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+                        try {
+                            this.ws.close();
+                        } catch (err) {
+                            console.error('Error closing WebSocket during timeout:', err);
+                        }
+                    }
+                    
+                    // Mark connection as timed out for diagnostics
+                    this.connectionState = 'timeout';
+                    
+                    // Try reconnecting
                     this.reconnect();
                 }
-            }, 10000); // 10 second timeout for initial connection
+            }, 8000); // 8 second timeout for initial connection (reduced from 10s)
             
-            // Setup event handlers
+            // Additional health check halfway through timeout period
+            setTimeout(() => {
+                if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+                    console.warn('WebSocket: Still connecting after 4 seconds, connection may be slow');
+                }
+            }, 4000);
+            
+            // Setup event handlers with proper binding to maintain 'this' context
             this.ws.onopen = this._onOpen.bind(this);
             this.ws.onclose = this._onClose.bind(this);
             this.ws.onerror = this._onError.bind(this);
             this.ws.onmessage = this._onMessage.bind(this);
+            
+            // Store connection timestamp for diagnostics
+            this.lastConnectionAttempt = new Date().toISOString();
         } catch (error) {
             if (this.options.debug) {
                 console.error('WebSocket: Error creating connection', error);
             }
+            
+            // Track the error
+            this.connectionState = 'failed';
+            this.lastError = {
+                time: new Date().toISOString(),
+                details: error ? (error.message || error.toString()) : 'Unknown connection error'
+            };
+            
+            // Attempt to reconnect
             this.reconnect();
         }
     }
@@ -186,11 +222,43 @@ class ReliableWebSocket {
     _onError(event) {
         if (this.options.debug) {
             console.error('WebSocket: Error occurred', event);
+            
+            // Get more detailed error information when available
+            if (event && event.target) {
+                const wsInstance = event.target;
+                console.error(`WebSocket error details - readyState: ${wsInstance.readyState}, URL: ${wsInstance.url || 'unknown'}`);
+            }
         }
+        
+        // Capture error details for diagnostics
+        this.lastError = {
+            time: new Date().toISOString(),
+            details: (event && event.message) ? event.message : 'Unknown WebSocket error'
+        };
         
         // Call user callback if provided
         if (typeof this.options.onError === 'function') {
             this.options.onError(event);
+        }
+        
+        // Force close the connection in certain cases to ensure proper reconnection
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            try {
+                // For certain errors, we need to force close to trigger the reconnection logic
+                this.ws.close();
+            } catch (closeErr) {
+                console.error('Error while attempting to close WebSocket after error:', closeErr);
+            }
+        } else if (this.ws && this.ws.readyState !== WebSocket.CLOSING) {
+            // Set a safety timer to force reconnection if onclose doesn't trigger
+            setTimeout(() => {
+                // Check if we're still in the error state
+                if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+                    console.warn('WebSocket: Safety timer triggered - forcing reconnection after error');
+                    this.cleanup();
+                    this.reconnect();
+                }
+            }, 2000); // 2 second safety timer
         }
     }
     
