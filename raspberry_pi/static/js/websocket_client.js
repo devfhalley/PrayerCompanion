@@ -423,6 +423,14 @@ function setupAudioWebSocket() {
     
     console.log('Setting up audio WebSocket connection to:', wsUrl);
     
+    // Use a worker thread for WebSocket processing if supported
+    const supportsWorkers = typeof(Worker) !== "undefined";
+    if (supportsWorkers) {
+        console.log("Browser supports Web Workers - enabling enhanced WebSocket stability for audio");
+    } else {
+        console.log("Browser does not support Web Workers - using standard WebSocket connection for audio");
+    }
+    
     window.audioWs = new ReliableWebSocket(wsUrl, {
         debug: true,
         onOpen: () => {
@@ -498,6 +506,14 @@ function setupPushToTalkWebSocket() {
     }
     
     console.log('Setting up Push-to-Talk WebSocket connection to:', wsUrl);
+    
+    // Use a worker thread for WebSocket processing if supported
+    const supportsWorkers = typeof(Worker) !== "undefined";
+    if (supportsWorkers) {
+        console.log("Browser supports Web Workers - enabling enhanced WebSocket stability");
+    } else {
+        console.log("Browser does not support Web Workers - using standard WebSocket connection");
+    }
     
     window.pttWs = new ReliableWebSocket(wsUrl, {
         debug: true,

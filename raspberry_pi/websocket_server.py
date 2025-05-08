@@ -294,6 +294,34 @@ def process_audio_message(message, audio_player):
         message: JSON message as string
         audio_player: AudioPlayer instance for playing audio
     """
+    # Process the audio message in a separate thread to avoid blocking the WebSocket connection
+    def process_message_thread():
+        try:
+            data = json.loads(message)
+            message_type = data.get('type')
+            
+            # Handle ping messages with immediate pong response
+            if message_type == 'ping':
+                logger.debug("Received ping message on audio channel, sending pong")
+                timestamp = data.get('timestamp', 0)
+                pong_message = {
+                    'type': 'pong',
+                    'timestamp': timestamp,
+                    'server_time': int(time.time() * 1000),
+                    'channel': 'audio'
+                }
+                # Send pong response to audio clients
+                broadcast_audio_message(pong_message)
+                return
+        except Exception as e:
+            logger.error(f"Error in audio message processing thread: {str(e)}")
+    
+    # Start the processing thread
+    processing_thread = threading.Thread(target=process_message_thread)
+    processing_thread.daemon = True
+    processing_thread.start()
+    
+    # Continue with the original function for backward compatibility
     try:
         data = json.loads(message)
         message_type = data.get('type')
@@ -395,6 +423,35 @@ def process_ptt_message(message, audio_player):
         message: JSON message as string
         audio_player: AudioPlayer instance for playing audio
     """
+    # Create a thread to handle the message processing to avoid blocking the WebSocket connection
+    # This is especially important for audio processing which can be CPU-intensive
+    def process_message_thread():
+        try:
+            data = json.loads(message)
+            message_type = data.get('type')
+            
+            # Handle ping messages with immediate pong response
+            if message_type == 'ping':
+                logger.debug("Received ping message on PTT channel, sending pong")
+                timestamp = data.get('timestamp', 0)
+                pong_message = {
+                    'type': 'pong',
+                    'timestamp': timestamp,
+                    'server_time': int(time.time() * 1000),
+                    'channel': 'ptt'
+                }
+                # Send pong response to PTT clients
+                broadcast_ptt_message(pong_message)
+                return
+        except Exception as e:
+            logger.error(f"Error in PTT message processing thread: {str(e)}")
+    
+    # Start the processing thread
+    processing_thread = threading.Thread(target=process_message_thread)
+    processing_thread.daemon = True
+    processing_thread.start()
+    
+    # Continue with the original function for backward compatibility
     try:
         data = json.loads(message)
         message_type = data.get('type')
