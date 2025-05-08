@@ -188,4 +188,6 @@ def custom_static(filename):
 
 if __name__ == '__main__':
     logger.info("Starting test web interface server")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # Enable threading for better handling of concurrent connections,
+    # especially important for WebSocket support
+    app.run(host='0.0.0.0', port=5000, threaded=True, debug=False)

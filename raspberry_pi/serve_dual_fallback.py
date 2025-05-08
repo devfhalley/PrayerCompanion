@@ -71,6 +71,8 @@ if postgres_available:
         def run_http_server():
             logger.info("Starting HTTP server on port 5000 with Flask's built-in server")
             # Setting threaded=True is important for WebSocket support
+            # This enables multithreading for handling concurrent connections
+            # especially important for real-time WebSocket communications
             app.run(host='0.0.0.0', port=5000, threaded=True, debug=False)
         
         if __name__ == '__main__':
@@ -98,7 +100,9 @@ if not postgres_available:
         
         if __name__ == '__main__':
             logger.info("Starting test web interface server on port 5001")
-            app.run(host='0.0.0.0', port=5001, debug=False)
+            # Enable threading for better handling of concurrent connections
+            # This is crucial for real-time features like WebSockets
+            app.run(host='0.0.0.0', port=5001, threaded=True, debug=False)
             
     except Exception as e:
         logger.error(f"Error starting test web interface: {e}")
