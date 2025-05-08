@@ -115,7 +115,43 @@ document.addEventListener('DOMContentLoaded', function() {
                 mediaRecorder.ondataavailable = function(event) {
                     if (event.data && event.data.size > 0) {
                         audioChunks.push(event.data);
-                        console.log(`Audio chunk received: ${event.data.size} bytes`);
+                        console.log(`Audio chunk received: ${event.data.size} bytes, total chunks: ${audioChunks.length}`);
+                        
+                        // Send audio data immediately if chunk size is significant
+                        // This helps ensure continuous audio transmission during longer recordings
+                        if (event.data.size > 5000 && audioChunks.length >= 2 && isRecording) {
+                            // Create a temporary blob from current chunks
+                            const tempBlob = new Blob(audioChunks, { type: mimeType });
+                            console.log(`Sending interim audio chunk, size: ${tempBlob.size} bytes`);
+                            
+                            const reader = new FileReader();
+                            reader.onloadend = function() {
+                                try {
+                                    const base64data = reader.result.split(',')[1];
+                                    
+                                    // Add format information to help the server process it correctly
+                                    const message = {
+                                        type: 'ptt_audio',
+                                        data: base64data,
+                                        format: 'webm_opus',
+                                        timestamp: Date.now(),
+                                        is_interim: true  // Flag to indicate this is part of an ongoing recording
+                                    };
+                                    
+                                    // Use the dedicated PTT WebSocket
+                                    if (window.pttWs && window.pttWs.isConnected()) {
+                                        window.pttWs.send(message);
+                                    }
+                                } catch (error) {
+                                    console.error('Error sending interim audio chunk:', error);
+                                }
+                            };
+                            reader.readAsDataURL(tempBlob);
+                            
+                            // Keep only the last chunk to avoid duplicate audio
+                            const lastChunk = audioChunks[audioChunks.length - 1];
+                            audioChunks = [lastChunk];
+                        }
                     }
                 };
                 
@@ -264,16 +300,36 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Check MediaRecorder state before starting
             if (mediaRecorder.state === 'inactive') {
-                console.log('Starting MediaRecorder with timeslice of 100ms');
-                mediaRecorder.start(100); // Collect data every 100ms
+                console.log('Starting MediaRecorder with timeslice of 250ms');
+                mediaRecorder.start(250); // Collect data every 250ms - longer chunks for better playback
+                
+                // Set a safety timeout to ensure recorder runs for at least 10 seconds
+                // even if the user doesn't release the button
+                mediaRecorder._safetyTimeout = setTimeout(() => {
+                    if (isRecording && mediaRecorder && mediaRecorder.state !== 'inactive') {
+                        console.log('Safety stop after 10 seconds of continuous recording');
+                        stopTalking();
+                    }
+                }, 10000); // 10 seconds max recording
             } else {
                 console.warn(`MediaRecorder is already in state: ${mediaRecorder.state}`);
                 // Try to reset it
                 try {
+                    if (mediaRecorder._safetyTimeout) {
+                        clearTimeout(mediaRecorder._safetyTimeout);
+                    }
                     mediaRecorder.stop();
                     setTimeout(() => {
                         audioChunks = [];
-                        mediaRecorder.start(100);
+                        mediaRecorder.start(250);
+                        
+                        // Reset safety timeout
+                        mediaRecorder._safetyTimeout = setTimeout(() => {
+                            if (isRecording && mediaRecorder && mediaRecorder.state !== 'inactive') {
+                                console.log('Safety stop after 10 seconds of continuous recording');
+                                stopTalking();
+                            }
+                        }, 10000); // 10 seconds max recording
                     }, 50);
                 } catch (e) {
                     console.error('Error resetting MediaRecorder:', e);
@@ -296,6 +352,12 @@ document.addEventListener('DOMContentLoaded', function() {
             isRecording = false;
             pttButton.classList.remove('active');
             statusMessage.textContent = 'Connected - Ready to talk';
+            
+            // Clear safety timeout if exists
+            if (mediaRecorder && mediaRecorder._safetyTimeout) {
+                clearTimeout(mediaRecorder._safetyTimeout);
+                mediaRecorder._safetyTimeout = null;
+            }
             
             // Stop the MediaRecorder if it's active
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {

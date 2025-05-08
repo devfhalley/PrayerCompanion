@@ -36,12 +36,10 @@ def setup_websocket(app, audio_player):
     # Configure Flask-Sock with more permissive settings for Replit environment
     sock = Sock(app)
     
-    # Set WebSocket options for better reliability in Replit environment
-    sock.max_message_size = 16 * 1024 * 1024  # 16MB max message size
-    
     # Set basic configuration options that are supported by the Flask-Sock library
     app.config['SOCK_SERVER_OPTIONS'] = {
-        'ping_interval': 25  # Send ping frames every 25 seconds
+        'ping_interval': 25,  # Send ping frames every 25 seconds
+        'max_message_size': 16 * 1024 * 1024  # 16MB max message size
     }
     
     # Start a background thread for sending periodic keepalive pings to all clients
@@ -178,6 +176,8 @@ def run_keepalive_pings():
             # Sleep a bit longer on error to prevent rapid retries
             time.sleep(5)
 
+
+
 def convert_webm_to_wav(webm_data):
     """Convert WebM audio data to WAV format.
     
@@ -215,10 +215,13 @@ def convert_webm_to_wav(webm_data):
     
     finally:
         # Clean up temporary files
+        temp_webm_path = locals().get('temp_webm_path', None)
+        wav_path = locals().get('wav_path', None)
+        
         try:
-            if 'temp_webm_path' in locals():
+            if temp_webm_path and os.path.exists(temp_webm_path):
                 os.unlink(temp_webm_path)
-            if 'wav_path' in locals():
+            if wav_path and os.path.exists(wav_path):
                 os.unlink(wav_path)
         except Exception as e:
             logger.error(f"Error cleaning up temporary files: {str(e)}")
@@ -273,10 +276,13 @@ def convert_pcm_to_wav(pcm_data, sample_rate=16000, channels=1):
     
     finally:
         # Clean up temporary files
+        temp_pcm_path = locals().get('temp_pcm_path', None)
+        wav_path = locals().get('wav_path', None)
+        
         try:
-            if 'temp_pcm_path' in locals():
+            if temp_pcm_path and os.path.exists(temp_pcm_path):
                 os.unlink(temp_pcm_path)
-            if 'wav_path' in locals():
+            if wav_path and os.path.exists(wav_path):
                 os.unlink(wav_path)
         except Exception as e:
             logger.error(f"Error cleaning up temporary files: {str(e)}")
@@ -424,38 +430,152 @@ def process_ptt_message(message, audio_player):
             # Process audio data
             audio_data = data.get('data')
             audio_format = data.get('format', 'unknown')
+            is_interim = data.get('is_interim', False)
             
             if not audio_data:
                 logger.warning("Received ptt_audio message with no data")
                 return
-                
-            # Decode base64 data
-            audio_bytes = base64.b64decode(audio_data)
             
-            if audio_format == 'webm_opus':
-                # Convert WebM/Opus to WAV
-                logger.info("Converting WebM/Opus audio to WAV")
-                wav_data = convert_webm_to_wav(audio_bytes)
-                if wav_data:
-                    audio_player.play_push_to_talk(wav_data)
-                else:
-                    logger.error("Failed to convert WebM to WAV")
-            elif audio_format == 'pcm_16bit':
-                # Handle PCM data from Android app
-                logger.info("Processing PCM audio from Android")
-                sample_rate = data.get('sample_rate', 16000)
-                channels = data.get('channels', 1)
+            # Log the audio data receipt
+            data_length = len(audio_data) if audio_data else 0
+            logger.info(f"Received PTT audio: format={audio_format}, size={data_length}, interim={is_interim}")
                 
-                # Convert PCM to WAV
-                wav_data = convert_pcm_to_wav(audio_bytes, sample_rate, channels)
-                if wav_data:
-                    audio_player.play_push_to_talk(wav_data)
+            try:
+                # Decode base64 data
+                audio_bytes = base64.b64decode(audio_data)
+                logger.info(f"Decoded audio bytes: {len(audio_bytes)} bytes")
+                
+                # Process the audio based on its format
+                if audio_format == 'webm_opus':
+                    # Convert WebM/Opus to WAV
+                    logger.info("Converting WebM/Opus audio to WAV")
+                    
+                    # Create a temporary file for the WebM data
+                    with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as temp_webm:
+                        temp_webm_path = temp_webm.name
+                        temp_webm.write(audio_bytes)
+                        logger.info(f"Wrote {len(audio_bytes)} bytes to temporary WebM file: {temp_webm_path}")
+                    
+                    try:
+                        # Convert WebM to WAV using pydub with explicit format
+                        audio = AudioSegment.from_file(temp_webm_path, format="webm")
+                        logger.info(f"Successfully loaded WebM audio: {len(audio)} ms duration")
+                        
+                        # Create a temporary file for WAV output
+                        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+                            wav_path = temp_wav.name
+                        
+                        # Export to WAV format with specific parameters for best compatibility
+                        audio.export(
+                            wav_path, 
+                            format="wav",
+                            parameters=["-ac", "1", "-ar", "44100"]  # Mono, 44.1kHz
+                        )
+                        logger.info(f"Exported WAV to: {wav_path}")
+                        
+                        # Read the WAV file
+                        with open(wav_path, 'rb') as wav_file:
+                            wav_data = wav_file.read()
+                            logger.info(f"Read {len(wav_data)} bytes from WAV file")
+                        
+                        # Play the audio with push-to-talk priority
+                        logger.info("Sending audio to player...")
+                        audio_player.play_push_to_talk(wav_data)
+                        
+                        # Send acknowledgment of audio receipt
+                        ack_message = {
+                            'type': 'ptt_acknowledgement',
+                            'message': 'Audio received and playing',
+                            'timestamp': int(time.time() * 1000),
+                            'size': len(wav_data),
+                            'format': 'wav'
+                        }
+                        broadcast_ptt_message(ack_message)
+                        
+                        # Notify audio clients that PTT audio is playing
+                        notify_message = {
+                            'type': 'ptt_status',
+                            'status': 'playing',
+                            'timestamp': int(time.time() * 1000)
+                        }
+                        broadcast_audio_message(notify_message)
+                        
+                    except Exception as conv_e:
+                        logger.error(f"Error in WebM to WAV conversion: {str(conv_e)}")
+                        # Send error notification
+                        error_message = {
+                            'type': 'ptt_error',
+                            'message': f'Failed to convert audio: {str(conv_e)}',
+                            'timestamp': int(time.time() * 1000)
+                        }
+                        broadcast_ptt_message(error_message)
+                    
+                    finally:
+                        # Clean up temporary files
+                        try:
+                            if os.path.exists(temp_webm_path):
+                                os.unlink(temp_webm_path)
+                                logger.info(f"Deleted temporary WebM file: {temp_webm_path}")
+                            
+                            wav_path_local = locals().get('wav_path')
+                            if wav_path_local and os.path.exists(wav_path_local):
+                                os.unlink(wav_path_local)
+                                logger.info(f"Deleted temporary WAV file: {wav_path_local}")
+                        except Exception as e:
+                            logger.error(f"Error cleaning up temporary files: {str(e)}")
+                
+                elif audio_format == 'pcm_16bit':
+                    # Handle PCM data from Android app
+                    logger.info("Processing PCM audio from Android")
+                    sample_rate = data.get('sample_rate', 16000)
+                    channels = data.get('channels', 1)
+                    
+                    # Convert PCM to WAV
+                    wav_data = convert_pcm_to_wav(audio_bytes, sample_rate, channels)
+                    if wav_data:
+                        logger.info(f"Successfully converted PCM to WAV: {len(wav_data)} bytes")
+                        audio_player.play_push_to_talk(wav_data)
+                        
+                        # Send acknowledgment 
+                        ack_message = {
+                            'type': 'ptt_acknowledgement',
+                            'message': 'PCM audio received and playing',
+                            'timestamp': int(time.time() * 1000),
+                            'size': len(wav_data)
+                        }
+                        broadcast_ptt_message(ack_message)
+                    else:
+                        logger.error("Failed to convert PCM to WAV")
+                        # Send error notification
+                        error_message = {
+                            'type': 'ptt_error',
+                            'message': 'Failed to convert PCM audio format',
+                            'timestamp': int(time.time() * 1000)
+                        }
+                        broadcast_ptt_message(error_message)
+                
                 else:
-                    logger.error("Failed to convert PCM to WAV")
-            else:
-                # Try to play directly as fallback
-                logger.info(f"Trying to play PTT audio with format: {audio_format}")
-                audio_player.play_push_to_talk(audio_bytes)
+                    # Try to play directly as fallback
+                    logger.info(f"Trying to play PTT audio with format: {audio_format}")
+                    audio_player.play_push_to_talk(audio_bytes)
+                    
+                    # Send acknowledgment
+                    ack_message = {
+                        'type': 'ptt_acknowledgement',
+                        'message': f'Raw audio with format {audio_format} received and playing',
+                        'timestamp': int(time.time() * 1000),
+                        'size': len(audio_bytes)
+                    }
+                    broadcast_ptt_message(ack_message)
+            except Exception as e:
+                logger.error(f"Error processing PTT audio: {str(e)}")
+                # Send error notification
+                error_message = {
+                    'type': 'ptt_error',
+                    'message': f'Server error: {str(e)}',
+                    'timestamp': int(time.time() * 1000)
+                }
+                broadcast_ptt_message(error_message)
         
         elif message_type == 'ptt_stop':
             logger.info("Push-to-talk stopped")

@@ -28,12 +28,9 @@ author = "agent"
 agentRequireRestartOnSave = false
 
 [[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd raspberry_pi && python serve_dual.py"
-waitForPort = 5000
+args = "cd raspberry_pi && python serve_dual_fallback.py"
+waitForPort = 5001
 
 [[workflows.workflow]]
 name = "TestWebInterface"
@@ -45,11 +42,15 @@ args = "cd raspberry_pi && python test_web_interface.py"
 waitForPort = 5000
 
 [deployment]
-run = ["sh", "-c", "cd raspberry_pi && python serve_dual.py"]
+run = ["sh", "-c", "cd raspberry_pi && python serve_dual_fallback.py"]
 
 [[ports]]
 localPort = 5000
 externalPort = 5000
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
 
 [[ports]]
 localPort = 8000
