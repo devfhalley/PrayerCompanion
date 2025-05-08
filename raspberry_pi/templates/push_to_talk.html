@@ -100,41 +100,106 @@ document.addEventListener('DOMContentLoaded', function() {
                 } 
             });
             
-            // Use a different MIME type - wav works better for our backend
-            mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'audio/webm;codecs=opus'
-            });
+            // Set up MediaRecorder with appropriate options for WebM/Opus format
+            // First check what MIME types are supported by the browser
+            const mimeType = getSupportedMimeType();
+            console.log(`Using MIME type: ${mimeType}`);
             
-            mediaRecorder.ondataavailable = function(event) {
-                if (event.data.size > 0) {
-                    audioChunks.push(event.data);
-                }
-            };
-            
-            mediaRecorder.onstop = function() {
-                if (audioChunks.length > 0 && window.pttWs && window.pttWs.isConnected()) {
-                    // Combine chunks and convert to base64
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-                    const reader = new FileReader();
-                    
-                    reader.onloadend = function() {
-                        const base64data = reader.result.split(',')[1];
+            try {
+                // Create MediaRecorder with specific options
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: mimeType,
+                    audioBitsPerSecond: 128000  // 128 kbps for good quality voice
+                });
+                
+                mediaRecorder.ondataavailable = function(event) {
+                    if (event.data && event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        console.log(`Audio chunk received: ${event.data.size} bytes`);
+                    }
+                };
+                
+                mediaRecorder.onstop = function() {
+                    if (audioChunks.length > 0) {
+                        console.log(`Processing ${audioChunks.length} audio chunks`);
                         
-                        // Add format information to help the server process it correctly
-                        const message = {
-                            type: 'ptt_audio',
-                            data: base64data,
-                            format: 'webm_opus'
+                        // Check WebSocket connection
+                        if (!window.pttWs || !window.pttWs.isConnected()) {
+                            console.error('WebSocket not connected, cannot send audio');
+                            statusMessage.textContent = 'Cannot send audio - WebSocket disconnected';
+                            audioChunks = [];
+                            return;
+                        }
+                        
+                        // Combine chunks and convert to base64
+                        const audioBlob = new Blob(audioChunks, { type: mimeType });
+                        console.log(`Created audio blob: ${audioBlob.size} bytes`);
+                        
+                        const reader = new FileReader();
+                        
+                        reader.onloadend = function() {
+                            try {
+                                const base64data = reader.result.split(',')[1];
+                                console.log(`Converted to base64: ${base64data.length} chars`);
+                                
+                                // Add format information to help the server process it correctly
+                                const message = {
+                                    type: 'ptt_audio',
+                                    data: base64data,
+                                    format: 'webm_opus',
+                                    timestamp: Date.now()
+                                };
+                                
+                                // Use the dedicated PTT WebSocket
+                                const success = window.pttWs.send(message);
+                                
+                                if (success) {
+                                    console.log('Audio data sent successfully');
+                                    updatePttSendStatus(true, 'Audio sent successfully');
+                                } else {
+                                    console.error('Failed to send audio data');
+                                    updatePttSendStatus(false, 'Failed to send audio');
+                                }
+                            } catch (error) {
+                                console.error('Error processing audio data:', error);
+                                updatePttSendStatus(false, 'Error processing audio');
+                            }
                         };
                         
-                        // Use the dedicated PTT WebSocket
-                        window.pttWs.send(message);
-                    };
-                    
-                    reader.readAsDataURL(audioBlob);
-                    audioChunks = [];
+                        reader.onerror = function(error) {
+                            console.error('Error reading audio blob:', error);
+                            updatePttSendStatus(false, 'Error reading audio');
+                        };
+                        
+                        reader.readAsDataURL(audioBlob);
+                        audioChunks = [];
+                    }
+                };
+            } catch (error) {
+                console.error('Error creating MediaRecorder:', error);
+                statusMessage.textContent = `MediaRecorder error: ${error.message}`;
+                return false;
+            }
+            
+            // Helper function to get supported MIME type
+            function getSupportedMimeType() {
+                const types = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/ogg',
+                    'audio/mp4'
+                ];
+                
+                for (let type of types) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        return type;
+                    }
                 }
-            };
+                
+                // Fallback
+                return '';
+            }
             
             statusMessage.textContent = 'Microphone access granted';
             statusMessage.style.color = 'green';
@@ -162,45 +227,106 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function startTalking() {
-        if (!window.pttWs || !window.pttWs.isConnected() || !mediaRecorder) {
-            statusMessage.textContent = 'Cannot start talking - connection or microphone issue';
+        // Check if WebSocket is connected and MediaRecorder is available
+        if (!window.pttWs || !window.pttWs.isConnected()) {
+            statusMessage.textContent = 'Cannot start talking - no WebSocket connection';
+            updatePttSendStatus(false, 'No WebSocket connection');
             return;
         }
         
+        if (!mediaRecorder) {
+            statusMessage.textContent = 'Cannot start talking - microphone access issue';
+            updatePttSendStatus(false, 'Microphone access issue');
+            return;
+        }
+        
+        // Don't start a new recording if already recording
         if (isRecording) return;
         
-        isRecording = true;
-        pttButton.classList.add('active');
-        statusMessage.textContent = 'Talking...';
-        
-        // Send start message using the dedicated PTT WebSocket
-        const message = {
-            type: 'ptt_start'
-        };
-        window.pttWs.send(message);
-        
-        // Start recording
-        audioChunks = [];
-        mediaRecorder.start(100); // Collect data every 100ms
+        try {
+            isRecording = true;
+            pttButton.classList.add('active');
+            statusMessage.textContent = 'Talking...';
+            
+            // Send start message using the dedicated PTT WebSocket
+            const message = {
+                type: 'ptt_start',
+                timestamp: Date.now()
+            };
+            const sendSuccess = window.pttWs.send(message);
+            
+            if (!sendSuccess) {
+                console.warn('Failed to send ptt_start message');
+            }
+            
+            // Clear any existing audio chunks and start recording
+            audioChunks = [];
+            
+            // Check MediaRecorder state before starting
+            if (mediaRecorder.state === 'inactive') {
+                console.log('Starting MediaRecorder with timeslice of 100ms');
+                mediaRecorder.start(100); // Collect data every 100ms
+            } else {
+                console.warn(`MediaRecorder is already in state: ${mediaRecorder.state}`);
+                // Try to reset it
+                try {
+                    mediaRecorder.stop();
+                    setTimeout(() => {
+                        audioChunks = [];
+                        mediaRecorder.start(100);
+                    }, 50);
+                } catch (e) {
+                    console.error('Error resetting MediaRecorder:', e);
+                }
+            }
+        } catch (error) {
+            console.error('Error starting recording:', error);
+            isRecording = false;
+            pttButton.classList.remove('active');
+            statusMessage.textContent = `Recording error: ${error.message}`;
+            updatePttSendStatus(false, 'Failed to start recording');
+        }
     }
     
     function stopTalking() {
+        // If not currently recording, just return
         if (!isRecording) return;
         
-        isRecording = false;
-        pttButton.classList.remove('active');
-        statusMessage.textContent = 'Connected - Ready to talk';
-        
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-        }
-        
-        // Send stop message using the dedicated PTT WebSocket
-        if (window.pttWs && window.pttWs.isConnected()) {
-            const message = {
-                type: 'ptt_stop'
-            };
-            window.pttWs.send(message);
+        try {
+            isRecording = false;
+            pttButton.classList.remove('active');
+            statusMessage.textContent = 'Connected - Ready to talk';
+            
+            // Stop the MediaRecorder if it's active
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                console.log('Stopping MediaRecorder');
+                try {
+                    mediaRecorder.stop();
+                } catch (e) {
+                    console.error('Error stopping MediaRecorder:', e);
+                }
+            }
+            
+            // Send stop message using the dedicated PTT WebSocket
+            if (window.pttWs && window.pttWs.isConnected()) {
+                const message = {
+                    type: 'ptt_stop',
+                    timestamp: Date.now()
+                };
+                const success = window.pttWs.send(message);
+                
+                if (!success) {
+                    console.warn('Failed to send ptt_stop message');
+                }
+            } else {
+                console.warn('WebSocket not connected when stopping PTT');
+            }
+        } catch (error) {
+            console.error('Error stopping recording:', error);
+            // Ensure UI is reset even on error
+            pttButton.classList.remove('active');
+            statusMessage.textContent = 'Connected - Ready to talk';
+            updatePttSendStatus(false, 'Error stopping recording');
         }
     }
     
@@ -228,6 +354,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 pttStatusIndicator.classList.add('disconnected');
                 pttStatusIndicator.textContent = 'Disconnected';
             }
+        }
+    }
+    
+    // Update the Push-to-Talk status in the UI
+    function updatePttSendStatus(success, message) {
+        const statusEl = document.querySelector('#ptt-status');
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = success ? 'success' : 'error';
+            
+            // Clear the status after a delay
+            setTimeout(() => {
+                statusEl.textContent = '';
+                statusEl.className = '';
+            }, 3000);
         }
     }
     
